@@ -787,3 +787,155 @@ canvas{
   .chart-wrap{ overflow:hidden; }
   #salesChart{ width:100% !important; display:block; }
 }
+
+/* --- SALE UI MODERNA --- */
+.hidden { display:none !important; }
+
+.sale-confirm{
+  margin-top:12px;
+  padding:12px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+}
+
+.sale-confirm-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:12px;
+  margin-bottom:10px;
+}
+
+.sale-confirm-title{
+  font-weight:900;
+  letter-spacing:0.2px;
+}
+
+.sale-confirm-sub{
+  font-size:13px;
+  color:#94a3b8;
+}
+
+.sale-plan-list{
+  display:grid;
+  gap:8px;
+  margin:10px 0 12px;
+}
+
+.sale-plan-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.12);
+}
+
+.sale-plan-left{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.sale-plan-top{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.sale-badge{
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:12px;
+  border:1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+}
+
+.sale-plan-meta{
+  font-size:12px;
+  color:#94a3b8;
+}
+
+.sale-plan-qty{
+  font-weight:900;
+  font-size:16px;
+  white-space:nowrap;
+}
+
+/* Chips moderne */
+.sale-chips{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.sale-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color:inherit;
+  cursor:pointer;
+  transition: transform .08s ease, background .12s ease, border-color .12s ease;
+  user-select:none;
+}
+
+.sale-chip:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(255,255,255,0.18);
+}
+
+.sale-chip:active{
+  transform: translateY(0px);
+}
+
+.sale-chip .chip-pill{
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:12px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.sale-chip.selected{
+  background: rgba(59,130,246,0.18);
+  border-color: rgba(59,130,246,0.35);
+}
+
+.sale-chip.disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  transform:none !important;
+}
+
+.sale-chip-actions{
+  display:flex;
+  gap:6px;
+  margin-left:6px;
+}
+
+.sale-chip-btn{
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  transition: background .12s ease, border-color .12s ease;
+}
+
+.sale-chip-btn:hover{
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.18);
+}

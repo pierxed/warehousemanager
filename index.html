@@ -366,10 +366,31 @@
   <div id="sale_manual_status" class="muted"></div>
 </div>
 
+
     <div class="row" style="margin-top:10px;">
       <button id="btn_sale" type="button" class="btn-primary">Registra Vendita</button>
+
+
       <div id="sale_message" class="message"></div>
     </div>
+      <!-- BOX conferma 2-step -->
+<div id="sale_confirm_box" style="margin-top:12px;"></div>
+
+<!-- BOX manuale (se già lo usi) -->
+<div id="sale_manual_box" style="display:none; margin-top:12px;">
+  <div id="sale_manual_status" class="muted"></div>
+
+  <div style="margin-top:10px;">
+    <div class="muted" style="margin-bottom:6px;">Lotti selezionati</div>
+    <div id="sale_selected_chips"></div>
+  </div>
+
+  <div style="margin-top:12px;">
+    <div class="muted" style="margin-bottom:6px;">Suggerimenti lotti</div>
+    <div id="sale_lot_chips"></div>
+  </div>
+</div>
+    
   </div>
 </section>
 

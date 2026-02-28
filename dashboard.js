@@ -6,7 +6,6 @@ function isMobile(){
 }
 
 function renderMobileRows(tbody, rows){
-  // rows: array di oggetti {title, lines:[...], right}
   tbody.innerHTML = rows.map(r => `
     <tr>
       <td style="padding:12px 14px;">
@@ -30,7 +29,6 @@ async function loadHomeDashboard(){
   const movements = await fetchJSON('api_movements.php');
   const today = new Date();
 
-  // stock per lotto
   const stockByLot = new Map();
 
   for(const m of movements){
@@ -49,7 +47,6 @@ async function loadHomeDashboard(){
     stock: stockByLot.get(Number(l.lot_id)) || 0
   }));
 
-  // stock totale
   const totalStock = lotsWithStock.reduce((s,l)=> s + Math.max(0, Number(l.stock)||0), 0);
   document.getElementById('card_total_stock').innerText = totalStock;
 
@@ -124,14 +121,12 @@ async function loadHomeDashboard(){
       });
   }
 
-  // produzione oggi
   const totalTodayProduction = movements
     .filter(m => m.type === 'PRODUCTION' && isSameLocalDay(m.created_at, today))
     .reduce((s,m)=> s + (Number(m.quantity)||0), 0);
 
   document.getElementById('card_today_production').innerText = totalTodayProduction;
 
-  // scadenze
   const expiringLots = lotsWithStock.filter(l=>{
     const diffDays = Math.ceil((new Date(l.expiration_date) - today)/(1000*60*60*24));
     return diffDays <= 30 && (Number(l.stock)||0) > 0;
@@ -139,7 +134,6 @@ async function loadHomeDashboard(){
 
   document.getElementById('card_expiring').innerText = expiringLots.length;
 
-  // ---- HOME: scadenze divise 0-7 / 8-30 ----
   const tb7 = document.getElementById('expiry_7_table');
   const tb30 = document.getElementById('expiry_30_table');
 
@@ -200,7 +194,6 @@ async function loadHomeDashboard(){
     }
   }
 
-  // ---- HOME: ultimi movimenti (10) ----
   const movesTb = document.getElementById('last_moves_table');
   if(movesTb){
     movesTb.innerHTML = '';
@@ -248,7 +241,6 @@ async function loadHomeDashboard(){
     }
   }
 
-  // ---- HOME: grafico Top vendite per prodotto (ultimi 30 giorni) ----
   const salesEl = document.getElementById('salesChart');
   if(salesEl){
     const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
@@ -321,7 +313,6 @@ function showExpiryToasts(expiringLots){
 }
 
 // ---------- UTILS ----------
-
 function lockLotFields(){
   const lot = document.getElementById('lot_number');
   const exp = document.getElementById('expiration_date');
@@ -375,7 +366,6 @@ async function fetchProductByEAN(ean){
   return await fetchJSON('api_get_product.php?ean=' + encodeURIComponent(ean));
 }
 
-
 // ---------- PRODUCTS DROPDOWN ----------
 let PRODUCTS = [];
 
@@ -388,11 +378,8 @@ function extractWeight(format){
 async function loadProducts() {
 
   PRODUCTS = await fetchJSON('api_products.php');
-
-  // ✅ NASCONDI ARCHIVIATI (paracadute)
   PRODUCTS = (PRODUCTS || []).filter(p => Number(p.is_active ?? 1) === 1);
 
-  // 🔹 Nomi unici ordinati alfabeticamente
   const productNames = [...new Set(PRODUCTS.map(p => p.name))]
     .sort((a,b)=> a.localeCompare(b));
 
@@ -455,7 +442,7 @@ async function loadProducts() {
     await refreshTodayBatches();
   });
 
-  // ----- VENDITA: popola select nome + formato (se esistono in HTML) -----
+  // ----- VENDITA: popola select nome + formato -----
   (function initSaleSelectors(){
     const ns0 = document.getElementById('sale_product_name_select');
     const fs0 = document.getElementById('sale_prod_select');
@@ -515,7 +502,6 @@ async function checkBatchWarning(lotNumber){
     return;
   }
 
-  // 🔥 Se non è selezionato formato, mostra messaggio neutro
   if(!formatSelect.value){
     warningDiv.innerHTML = `
       <div class="message" style="background:#e3f2fd;color:#0d47a1;">
@@ -552,7 +538,6 @@ async function checkBatchWarning(lotNumber){
       return;
     }
 
-    // lotto valido
     warningDiv.innerHTML = `
       <div class="message success">
         ✔ Lotto esistente (${data.fish_type}) creato il ${formatDateIT(data.production_date)}
@@ -591,7 +576,6 @@ async function refreshTodayBatches(){
 
   const rows = await fetchJSON('api_batches_today.php');
 
-  // 🔥 filtro per fish_type
   const filtered = rows.filter(r => r.fish_type === selectedFishType);
 
   dl.innerHTML = '';
@@ -702,38 +686,97 @@ document.getElementById('btn_production')?.addEventListener('click', async ()=>{
   }
 });
 
-
-// ---------- VENDITA V2 UI COMPLETA (dropdown prodotto+formato + EAN opzionale) ----------
+// ---------- VENDITA ----------
+// ---------- VENDITA ----------
 const SaleUI = (() => {
-  let currentProduct = null;          // {id, name, ean...}
-  let suggestedLots = [];             // [{lot_id, lot_number, expiration_date, stock...}]
-  let selectedLots = new Map();       // lot_id -> qty
+  let currentProduct = null;
+  let suggestedLots = [];
+  let selectedLots = new Map();
 
   const el = (id) => document.getElementById(id);
-
   const getQty = () => parseInt(el('sale_qty')?.value, 10) || 1;
   const isManual = () => !!el('sale_manual_toggle')?.checked;
-
-  const resetLotsUI = () => {
-    suggestedLots = [];
-    selectedLots.clear();
-    if (el('sale_plan_hint')) el('sale_plan_hint').textContent = '';
-    if (el('sale_manual_status')) el('sale_manual_status').textContent = '';
-    if (el('sale_lot_chips')) el('sale_lot_chips').innerHTML = '';
-    if (el('sale_selected_chips')) el('sale_selected_chips').innerHTML = '';
-  };
 
   const setMsg = (type, text) => {
     const msg = el('sale_message');
     if (!msg) return;
     msg.className = 'message';
     msg.textContent = '';
-    msg.classList.add(type);
+    if(type) msg.classList.add(type);
     msg.textContent = text;
   };
 
-  const planToText = (plan) =>
-    (plan || []).map(x => `${x.lot_number ?? ('lot#'+x.lot_id)}:${x.qty ?? x.taken}`).join(', ');
+  const ensureConfirmBox = () => {
+    if (el('sale_confirm_box')) return;
+
+    const btn = el('btn_sale');
+    if(!btn) return;
+
+    const card = btn.closest('.card') || btn.parentElement;
+    if(!card) return;
+
+    const box = document.createElement('div');
+    box.id = 'sale_confirm_box';
+    box.style.marginTop = '12px';
+    card.appendChild(box);
+  };
+
+  const clearConfirmBox = () => {
+    const box = el('sale_confirm_box');
+    if(box) box.innerHTML = '';
+  };
+
+  const renderConfirmBox = ({ title, subtitle, planLines, onConfirm, onCancel }) => {
+    ensureConfirmBox();
+    const box = el('sale_confirm_box');
+    if(!box) return;
+
+    box.innerHTML = `
+      <div style="
+        border:1px solid rgba(255,255,255,.12);
+        border-radius:14px;
+        padding:12px;
+        background:rgba(255,255,255,.04);
+      ">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+          <div>
+            <div style="font-weight:900;">${title}</div>
+            <div class="muted" style="margin-top:4px;">${subtitle || ''}</div>
+          </div>
+          <button type="button" id="sale_confirm_close" class="btn-secondary"
+            style="border-radius:999px;padding:6px 10px;">✕</button>
+        </div>
+
+        <div style="margin-top:10px; display:grid; gap:6px;">
+          ${(planLines || []).map(t => `
+            <div style="
+              padding:10px 12px;
+              border-radius:12px;
+              background:rgba(255,255,255,.06);
+              border:1px solid rgba(255,255,255,.10);
+            ">${t}</div>
+          `).join('')}
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:12px;">
+          <button type="button" id="sale_confirm_btn" class="btn-primary"
+            style="flex:1; border-radius:12px;">Conferma vendita</button>
+          <button type="button" id="sale_cancel_btn" class="btn-secondary"
+            style="border-radius:12px;">Annulla</button>
+        </div>
+      </div>
+    `;
+
+    box.querySelector('#sale_confirm_btn')?.addEventListener('click', onConfirm);
+    box.querySelector('#sale_cancel_btn')?.addEventListener('click', () => {
+      clearConfirmBox();
+      onCancel?.();
+    });
+    box.querySelector('#sale_confirm_close')?.addEventListener('click', () => {
+      clearConfirmBox();
+      onCancel?.();
+    });
+  };
 
   const selectedSum = () => {
     let s = 0;
@@ -743,13 +786,60 @@ const SaleUI = (() => {
 
   const remainingNeeded = () => Math.max(0, getQty() - selectedSum());
 
+  const resetManualUI = () => {
+    selectedLots.clear();
+    if (el('sale_lot_chips')) el('sale_lot_chips').innerHTML = '';
+    if (el('sale_selected_chips')) el('sale_selected_chips').innerHTML = '';
+    if (el('sale_manual_status')) el('sale_manual_status').textContent = '';
+  };
+
+  const resetAllUI = () => {
+    suggestedLots = [];
+    resetManualUI();
+    if (el('sale_plan_hint')) el('sale_plan_hint').textContent = '';
+    clearConfirmBox();
+  };
+
+  const renderManualStatus = () => {
+    const st = el('sale_manual_status');
+    if (!st) return;
+
+    const need = remainingNeeded();
+    if (need === 0) st.textContent = '✅ OK: quantità completa. Ora premi “Registra Vendita”.';
+    else st.textContent = `⏳ Mancano ${need}. Seleziona altri lotti.`;
+  };
+
+  // ------- CHIP UI (manuale) -------
+  const chipStyle = `
+    display:inline-flex;align-items:center;gap:8px;
+    padding:8px 12px;border-radius:999px;
+    border:1px solid rgba(255,255,255,0.12);
+    background:rgba(255,255,255,0.06);
+    cursor:pointer;user-select:none;
+  `;
+  const pillStyle = `
+    padding:2px 8px;border-radius:999px;font-size:12px;
+    background:rgba(0,0,0,0.18);
+    border:1px solid rgba(255,255,255,0.10);
+  `;
+  const btnMini = `
+    width:26px;height:26px;border-radius:999px;
+    border:1px solid rgba(255,255,255,0.12);
+    background:rgba(255,255,255,0.06);
+    cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  `;
+
   const renderSuggestedChips = () => {
     const box = el('sale_lot_chips');
     if (!box) return;
+
     box.innerHTML = '';
+    box.style.display = 'flex';
+    box.style.flexWrap = 'wrap';
+    box.style.gap = '8px';
 
     if (!suggestedLots.length) {
-      const span = document.createElement('span');
+      const span = document.createElement('div');
       span.className = 'muted';
       span.textContent = 'Nessun lotto disponibile.';
       box.appendChild(span);
@@ -757,39 +847,49 @@ const SaleUI = (() => {
     }
 
     suggestedLots.forEach(l => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'btn-secondary';
-      btn.style.padding = '6px 10px';
-      btn.style.borderRadius = '999px';
+      const available = Number(l.stock || 0);
+      const already = Number(selectedLots.get(l.lot_id) || 0);
+      const canAdd = Math.max(0, available - already);
 
-      const exp = l.expiration_date ? ` | scad ${l.expiration_date}` : '';
-      btn.textContent = `${l.lot_number ?? ('lot#'+l.lot_id)} (${l.stock})${exp}`;
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.style.cssText = chipStyle + (canAdd <= 0 ? 'opacity:.45;cursor:not-allowed;' : '');
 
-      btn.onclick = () => {
+      const expTxt = l.expiration_date ? `Scad. ${formatDateIT(l.expiration_date)}` : 'Scad. —';
+      chip.innerHTML = `
+        <strong>${l.lot_number ?? ('lot#'+l.lot_id)}</strong>
+        <span style="${pillStyle}">${available} disp.</span>
+        <span style="font-size:12px;color:#94a3b8;">${expTxt}</span>
+      `;
+
+      chip.onclick = () => {
+        if (canAdd <= 0) return;
         const need = remainingNeeded();
         if (need <= 0) return;
 
-        const already = Number(selectedLots.get(l.lot_id) || 0);
-        const add = Math.min(Number(l.stock || 0) - already, need);
-
-        if (add <= 0) return;
+        const add = Math.min(canAdd, need);
         selectedLots.set(l.lot_id, already + add);
+
+        renderSuggestedChips();
         renderSelectedChips();
         renderManualStatus();
       };
 
-      box.appendChild(btn);
+      box.appendChild(chip);
     });
   };
 
   const renderSelectedChips = () => {
     const box = el('sale_selected_chips');
     if (!box) return;
+
     box.innerHTML = '';
+    box.style.display = 'flex';
+    box.style.flexWrap = 'wrap';
+    box.style.gap = '8px';
 
     if (selectedLots.size === 0) {
-      const span = document.createElement('span');
+      const span = document.createElement('div');
       span.className = 'muted';
       span.textContent = 'Nessun lotto selezionato.';
       box.appendChild(span);
@@ -802,75 +902,59 @@ const SaleUI = (() => {
       const maxStock = Number(lot?.stock ?? qty);
 
       const chip = document.createElement('div');
-      chip.style.display = 'flex';
-      chip.style.alignItems = 'center';
-      chip.style.gap = '6px';
-      chip.style.padding = '6px 10px';
-      chip.style.borderRadius = '999px';
-      chip.style.border = '1px solid rgba(255,255,255,0.15)';
+      chip.style.cssText = chipStyle + 'cursor:default;background:rgba(59,130,246,0.12);border-color:rgba(59,130,246,0.25);';
 
-      const label = document.createElement('span');
-      label.textContent = `${name}: ${qty}`;
+      const left = document.createElement('span');
+      left.innerHTML = `<strong>${name}</strong> <span style="${pillStyle}">${qty}</span>`;
 
-      const minus = document.createElement('button');
-      minus.type = 'button';
-      minus.textContent = '−';
-      minus.className = 'btn-secondary';
-      minus.style.padding = '2px 8px';
-      minus.style.borderRadius = '999px';
-      minus.onclick = () => {
+      const actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.gap = '6px';
+      actions.style.marginLeft = '6px';
+
+      const mkBtn = (txt, onClick) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.style.cssText = btnMini;
+        b.textContent = txt;
+        b.onclick = onClick;
+        return b;
+      };
+
+      actions.appendChild(mkBtn('−', () => {
         const v = Number(selectedLots.get(lot_id) || 0);
         if (v <= 1) selectedLots.delete(lot_id);
         else selectedLots.set(lot_id, v - 1);
+        renderSuggestedChips();
         renderSelectedChips();
         renderManualStatus();
-      };
+      }));
 
-      const plus = document.createElement('button');
-      plus.type = 'button';
-      plus.textContent = '+';
-      plus.className = 'btn-secondary';
-      plus.style.padding = '2px 8px';
-      plus.style.borderRadius = '999px';
-      plus.onclick = () => {
+      actions.appendChild(mkBtn('+', () => {
         const need = remainingNeeded();
         if (need <= 0) return;
         const v = Number(selectedLots.get(lot_id) || 0);
         if (v >= maxStock) return;
         selectedLots.set(lot_id, v + 1);
+        renderSuggestedChips();
         renderSelectedChips();
         renderManualStatus();
-      };
+      }));
 
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.textContent = '×';
-      del.className = 'btn-secondary';
-      del.style.padding = '2px 8px';
-      del.style.borderRadius = '999px';
-      del.onclick = () => {
+      actions.appendChild(mkBtn('×', () => {
         selectedLots.delete(lot_id);
+        renderSuggestedChips();
         renderSelectedChips();
         renderManualStatus();
-      };
+      }));
 
-      chip.appendChild(label);
-      chip.appendChild(minus);
-      chip.appendChild(plus);
-      chip.appendChild(del);
+      chip.appendChild(left);
+      chip.appendChild(actions);
       box.appendChild(chip);
     });
   };
 
-  const renderManualStatus = () => {
-    const st = el('sale_manual_status');
-    if (!st) return;
-
-    const need = remainingNeeded();
-    if (need === 0) st.textContent = 'OK: quantità completa. Puoi confermare.';
-    else st.textContent = `Mancano ${need}. Seleziona altri lotti (chip).`;
-  };
-
+  // ------- API -------
   const fetchSuggestedLots = async (product_id) => {
     const quantity = getQty();
     const res = await fetchJSON('api_sale_preview_v2.php', {
@@ -880,7 +964,6 @@ const SaleUI = (() => {
     });
 
     suggestedLots = res.suggested_lots || [];
-    renderSuggestedChips();
   };
 
   const buildManualLotsPayload = () => {
@@ -892,7 +975,6 @@ const SaleUI = (() => {
   };
 
   const resolveProductForSale = async () => {
-    // Priorità: dropdown formato vendita -> product_id
     const fs = document.getElementById('sale_prod_select');
     const selectedProductId = Number(fs?.value || 0);
 
@@ -902,14 +984,22 @@ const SaleUI = (() => {
       return p;
     }
 
-    // Fallback: EAN
     const code = el('barcode')?.value.trim() || '';
     if (!code) return { error: 'Seleziona prodotto/formato o inserisci EAN' };
 
-    const p = await fetchProductByEAN(code);
-    return p;
+    return await fetchProductByEAN(code);
   };
 
+  const humanPlanLines = (plan=[]) => {
+    return plan.map(x => {
+      const qty = Number(x.qty ?? x.taken ?? 0);
+      const lot = x.lot_number ?? ('lot#'+x.lot_id);
+      const exp = x.expiration_date ? ` • scad ${formatDateIT(x.expiration_date)}` : '';
+      return `Lotto <strong>${lot}</strong>${exp}: <strong>-${qty}</strong> barattoli`;
+    });
+  };
+
+  // -------- AUTO (2 step) --------
   const doAuto = async () => {
     const quantity = getQty();
 
@@ -920,34 +1010,50 @@ const SaleUI = (() => {
     });
 
     if (preview.success === false) {
+      clearConfirmBox();
       setMsg('error', preview.error || 'Stock insufficiente');
       return;
     }
 
-    const planText = planToText(preview.plan);
-    if (el('sale_plan_hint')) el('sale_plan_hint').textContent = `Piano: ${planText}`;
+    const productLabel =
+      `${currentProduct.name || ('Prodotto #' + currentProduct.id)}${currentProduct.format ? ` (${currentProduct.format})` : ''}`;
 
-    if (!confirm(`Confermi vendita di ${quantity}? Verrà scalato: ${planText}`)) return;
+    const lines = humanPlanLines(preview.plan || []);
+    if (el('sale_plan_hint')) el('sale_plan_hint').textContent = `Scarico automatico: ${lines.length} lotto/i`;
 
-    const commit = await fetchJSON('api_sale_commit_v2.php', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ mode:'auto', product_id: currentProduct.id, quantity })
+    renderConfirmBox({
+      title: `Stai per vendere ${quantity} barattoli`,
+      subtitle: `Prodotto: ${productLabel}. Conferma per registrare la vendita.`,
+      planLines: lines,
+      onConfirm: async () => {
+        const commit = await fetchJSON('api_sale_commit_v2.php', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ mode:'auto', product_id: currentProduct.id, quantity })
+        });
+
+        if (commit?.success === false || commit?.error) {
+          setMsg('error', commit.available != null
+            ? `Stock insufficiente: disponibili ${commit.available}. Riprova.`
+            : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore vendita')));
+          return;
+        }
+
+        clearConfirmBox();
+        setMsg('success', `✅ Vendita registrata: ${commit.sold} barattoli. Scaricato da: ${lines.map(l=>l.replace(/<[^>]*>/g,'')).join(' | ')}`);
+
+        el('barcode').value = '';
+        el('sale_qty').value = 1;
+        resetAllUI();
+
+        await loadHomeDashboard();
+        await loadProductsTable();
+      },
+      onCancel: () => setMsg('muted', 'Operazione annullata.')
     });
-
-    if (commit.success === false || commit.error) {
-      setMsg('error', commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore'));
-      return;
-    }
-
-    setMsg('success', `Venduti ${commit.sold} barattoli`);
-    el('barcode').value = '';
-    el('sale_qty').value = 1;
-    resetLotsUI();
-    await loadHomeDashboard();
-    await loadProductsTable();
   };
 
+  // -------- MANUAL (2 step + chip) --------
   const doManual = async () => {
     const quantity = getQty();
 
@@ -966,151 +1072,166 @@ const SaleUI = (() => {
     });
 
     if (preview.success === false) {
-      if (preview.code === 'INSUFFICIENT_STOCK_LOT') {
-        suggestedLots = preview.suggested_lots || suggestedLots;
-        renderSuggestedChips();
-        renderManualStatus();
-        setMsg('error', `Lotto insufficiente. Aggiungi altri lotti: manca ${preview.remaining_needed}.`);
-        return;
-      }
-      setMsg('error', preview.error || 'Errore');
+      setMsg('error', preview.error || 'Errore preview manuale');
       return;
     }
 
-    const planText = lots.map(x => `lot#${x.lot_id}:${x.qty}`).join(', ');
-    if (el('sale_plan_hint')) el('sale_plan_hint').textContent = `Manuale: ${planText}`;
-
-    if (!confirm(`Confermi vendita manuale di ${quantity}? (${planText})`)) return;
-
-    const commit = await fetchJSON('api_sale_commit_v2.php', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ mode:'manual', product_id: currentProduct.id, quantity, lots })
+    const planLines = lots.map(x => {
+      const lot = suggestedLots.find(s => Number(s.lot_id) === Number(x.lot_id));
+      const lotLabel = lot?.lot_number ?? ('lot#'+x.lot_id);
+      const exp = lot?.expiration_date ? ` • scad ${formatDateIT(lot.expiration_date)}` : '';
+      return `Lotto <strong>${lotLabel}</strong>${exp}: <strong>-${x.qty}</strong> barattoli`;
     });
 
-    if (commit.success === false || commit.error) {
-      setMsg('error', commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore'));
-      return;
-    }
+    renderConfirmBox({
+      title: `Conferma vendita manuale (${quantity})`,
+      subtitle: `Prodotto: ${currentProduct.name || ('Prodotto #' + currentProduct.id)}`,
+      planLines,
+      onConfirm: async () => {
+        const commit = await fetchJSON('api_sale_commit_v2.php', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ mode:'manual', product_id: currentProduct.id, quantity, lots })
+        });
 
-    setMsg('success', `Venduti ${commit.sold} barattoli (manuale)`);
-    el('barcode').value = '';
-    el('sale_qty').value = 1;
-    resetLotsUI();
-    await loadHomeDashboard();
-    await loadProductsTable();
+        if (commit.success === false || commit.error) {
+          setMsg('error', commit.available != null
+            ? `Stock insufficiente: disponibili ${commit.available}.`
+            : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore')));
+          return;
+        }
+
+        clearConfirmBox();
+        setMsg('success', `✅ Vendita manuale registrata: ${commit.sold} barattoli.`);
+
+        el('barcode').value = '';
+        el('sale_qty').value = 1;
+        resetAllUI();
+
+        await loadHomeDashboard();
+        await loadProductsTable();
+      },
+      onCancel: () => setMsg('muted', 'Operazione annullata.')
+    });
+  };
+
+  const openManualBoxAndLoadLots = async () => {
+    const manualBox = el('sale_manual_box');
+    if (manualBox) manualBox.style.display = 'block';
+
+    if (!currentProduct?.id) return;
+
+    await fetchSuggestedLots(currentProduct.id);
+    renderSuggestedChips();
+    renderSelectedChips();
+    renderManualStatus();
+  };
+
+  const closeManualBox = () => {
+    const manualBox = el('sale_manual_box');
+    if (manualBox) manualBox.style.display = 'none';
+    resetManualUI();
   };
 
   const init = () => {
     const btn = el('btn_sale');
     const toggle = el('sale_manual_toggle');
-    const manualBox = el('sale_manual_box');
     const saleFormat = el('sale_prod_select');
     const saleName = el('sale_product_name_select');
 
-    // Toggle manuale
+    ensureConfirmBox();
+
+    // toggle manuale
     if (toggle) {
-      toggle.onchange = async (e) => {
-        if (manualBox) manualBox.style.display = e.target.checked ? 'block' : 'none';
-        resetLotsUI();
+      toggle.addEventListener('change', async () => {
+        clearConfirmBox();
+        setMsg('', '');
+        resetManualUI();
 
-        if (currentProduct?.id && e.target.checked) {
-          await fetchSuggestedLots(currentProduct.id);
-          renderSelectedChips();
-          renderManualStatus();
-        }
-      };
-    }
-
-    // Cambio formato vendita -> aggiorna currentProduct + reset lotti
-    if (saleFormat) {
-      saleFormat.addEventListener('change', async () => {
-        const pid = Number(saleFormat.value || 0);
-        if (!pid) {
-          currentProduct = null;
-          resetLotsUI();
-          return;
-        }
-
-        const p = (PRODUCTS || []).find(x => Number(x.id) === pid) || null;
-        currentProduct = p;
-        resetLotsUI();
-
-        // compila barcode se presente
-        const opt = saleFormat.options[saleFormat.selectedIndex];
-        if (opt?.dataset?.ean && el('barcode')) el('barcode').value = opt.dataset.ean;
-
-        // se manuale, ricarica i lotti
-        if (isManual() && currentProduct?.id) {
-          if (manualBox) manualBox.style.display = 'block';
-          await fetchSuggestedLots(currentProduct.id);
-          renderSelectedChips();
-          renderManualStatus();
+        if (isManual()) {
+          await openManualBoxAndLoadLots();
+        } else {
+          closeManualBox();
         }
       });
     }
 
-    // Listener barcode: auto-compila select vendita (QUESTO è il posto giusto)
-    el('barcode')?.addEventListener('change', async () => {
-      const code = el('barcode').value.trim();
-      if (!code) return;
+    // cambio prodotto/formato
+    if (saleFormat) {
+      saleFormat.addEventListener('change', async () => {
+        const pid = Number(saleFormat.value || 0);
+        currentProduct = pid ? (PRODUCTS || []).find(x => Number(x.id) === pid) || null : null;
 
-      const p = await fetchProductByEAN(code);
-      if (p?.error) return;
+        clearConfirmBox();
+        setMsg('', '');
+        resetManualUI();
 
-      currentProduct = p;
+        if (isManual() && currentProduct?.id) {
+          await openManualBoxAndLoadLots();
+        }
+      });
+    }
 
-      // auto set nome + formato
-      if (saleName) {
-        saleName.value = p.name;
-        saleName.dispatchEvent(new Event('change'));
-      }
-      if (saleFormat) {
-        saleFormat.value = String(p.id);
-        saleFormat.dispatchEvent(new Event('change'));
-      }
+    // barcode scanner-friendly
+    let barcodeTimer = null;
+    el('barcode')?.addEventListener('input', () => {
+      clearTimeout(barcodeTimer);
+      barcodeTimer = setTimeout(async () => {
+        const code = el('barcode')?.value.trim() || '';
+        if (!code) return;
 
-      // se manuale, carica lotti
-      if (isManual() && currentProduct?.id) {
-        if (manualBox) manualBox.style.display = 'block';
-        await fetchSuggestedLots(currentProduct.id);
-        renderSelectedChips();
-        renderManualStatus();
-      }
+        const p = await fetchProductByEAN(code);
+        if (p?.error || p?.success === false) return;
+
+        currentProduct = p;
+
+        if (saleName) {
+          saleName.value = p.name;
+          saleName.dispatchEvent(new Event('change'));
+        }
+        if (saleFormat) {
+          saleFormat.value = String(p.id);
+          saleFormat.dispatchEvent(new Event('change'));
+        }
+
+        if (isManual() && currentProduct?.id) {
+          await openManualBoxAndLoadLots();
+        }
+      }, 180);
+    });
+
+    // qty cambia: se manuale ricalcola status e ricarica suggeriti
+    el('sale_qty')?.addEventListener('input', async () => {
+      clearConfirmBox();
+      if (!isManual()) return;
+      if (!currentProduct?.id) return;
+      // non resetto selectedLots (sennò ti incazzi), però aggiorno status
+      renderManualStatus();
+      await fetchSuggestedLots(currentProduct.id);
+      renderSuggestedChips();
+      renderSelectedChips();
+      renderManualStatus();
     });
 
     if (!btn) return;
 
-    // handler unico
     btn.onclick = async () => {
       btn.disabled = true;
       try {
-        if (el('sale_message')) { el('sale_message').className = 'message'; el('sale_message').textContent = ''; }
+        clearConfirmBox();
+        setMsg('', '');
 
         const quantity = getQty();
         if (quantity <= 0) { setMsg('error', 'Quantità non valida.'); return; }
 
-        // prodotto da dropdown (priorità) oppure EAN
         const product = await resolveProductForSale();
         if (product?.error) { setMsg('error', product.error); return; }
-        if (product?.success === false && product?.error) { setMsg('error', product.error); return; }
-        if (product?.error) { setMsg('error', product.error); return; }
-
-        if (product?.success === false) {
-          setMsg('error', product.error || 'Prodotto non trovato');
-          return;
-        }
+        if (product?.success === false) { setMsg('error', product.error || 'Prodotto non trovato'); return; }
 
         currentProduct = product;
 
         if (isManual()) {
-          if (manualBox) manualBox.style.display = 'block';
-          // se non ho ancora lotti caricati, caricali
-          if (!suggestedLots.length) {
-            await fetchSuggestedLots(currentProduct.id);
-            renderSelectedChips();
-          }
-          renderManualStatus();
+          await openManualBoxAndLoadLots();
           await doManual();
         } else {
           await doAuto();
@@ -1122,16 +1243,10 @@ const SaleUI = (() => {
         btn.disabled = false;
       }
     };
-
-    // se cambia qty in manuale, aggiorna stato "mancano X"
-    el('sale_qty')?.addEventListener('input', () => {
-      if (isManual()) renderManualStatus();
-    });
   };
 
   return { init };
 })();
-
 
 // ---------- PRODOTTI TAB ----------
 async function loadProductsTable(){
@@ -1143,9 +1258,7 @@ async function loadProductsTable(){
 
   rows.forEach(p=>{
 
-    const imageSrc = p.image_path 
-      ? p.image_path 
-      : 'uploads/stock.jpg';
+    const imageSrc = p.image_path ? p.image_path : 'uploads/stock.jpg';
 
     const card=document.createElement('div');
     card.className='product-card';
@@ -1188,7 +1301,6 @@ async function loadProductsTable(){
       </div>
     `;
 
-    // --- ELEMENTI ---
     const editBtn = card.querySelector('.btn-edit');
     const deleteBtn = card.querySelector('.btn-delete');
     const saveBtn = card.querySelector('.btn-save');
@@ -1197,21 +1309,18 @@ async function loadProductsTable(){
     const viewModes = card.querySelectorAll('.view-mode');
     const editModes = card.querySelectorAll('.edit-mode');
 
-    // --- ATTIVA MODIFICA ---
     editBtn.addEventListener('click', ()=>{
       card.classList.add('editing');
       viewModes.forEach(el=>el.classList.add('hidden'));
       editModes.forEach(el=>el.classList.remove('hidden'));
     });
 
-    // --- ANNULLA ---
     cancelBtn.addEventListener('click', ()=>{
       card.classList.remove('editing');
       editModes.forEach(el=>el.classList.add('hidden'));
       viewModes.forEach(el=>el.classList.remove('hidden'));
     });
 
-    // --- SALVA ---
     saveBtn.addEventListener('click', async ()=>{
       const newName = card.querySelector('.edit-name').value.trim();
       const newFormat = card.querySelector('.edit-format').value.trim();
@@ -1241,15 +1350,12 @@ async function loadProductsTable(){
       card.classList.remove('editing');
       card.classList.add('saved');
 
-      setTimeout(()=>{
-        card.classList.remove('saved');
-      },600);
+      setTimeout(()=>{ card.classList.remove('saved'); },600);
 
       await loadProducts();
       await loadProductsTable();
     });
 
-    // --- DELETE ---
     deleteBtn.addEventListener('click', async () => {
       if (!confirm("Eliminare il prodotto?")) return;
 
@@ -1284,44 +1390,9 @@ async function loadProductsTable(){
   });
 }
 
-async function editProduct(id){
-  const name = prompt("Nuovo nome:");
-  const format = prompt("Nuovo formato:");
-  const units = prompt("Unità per vassoio:");
-
-  if(!name || !format || !units) return;
-
-  const res = await fetchJSON('api_update_product.php',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({id,name,format,units})
-  });
-
-  if(res.error) return alert(res.error);
-
-  await loadProducts();
-  await loadProductsTable();
-}
-
-async function deleteProduct(id){
-  if(!confirm("Eliminare il prodotto?")) return;
-
-  const res = await fetchJSON('api_delete_product.php',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({id})
-  });
-
-  if(res.error) return alert(res.error);
-
-  await loadProducts();
-  await loadProductsTable();
-}
-
 // ---------- INIT ----------
 window.addEventListener('DOMContentLoaded', async ()=>{
 
-  // ---------- TABS STABILI ----------
   document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const targetId = btn.dataset.target;
@@ -1342,7 +1413,6 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   lockLotFields();
 
   await loadProducts();
-  // init SaleUI DOPO loadProducts (così i select vendita esistono e sono popolati)
   SaleUI.init();
 
   await loadHomeDashboard();
@@ -1405,7 +1475,6 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       msg.classList.add('success');
       msg.textContent = 'Prodotto creato con successo.';
 
-      // reset campi
       document.getElementById('new_product_name').value = '';
       document.getElementById('new_product_format').value = '';
       document.getElementById('new_product_ean').value = '';
@@ -1425,7 +1494,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   const lotInput = document.getElementById('lot_number');
   const formatSelect = document.getElementById('prod_select');
 
-  lotInput.addEventListener('input', async (e)=>{
+  lotInput?.addEventListener('input', async (e)=>{
     await checkBatchWarning(e.target.value.trim());
   });
 
@@ -1475,17 +1544,13 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         const nameSelect = document.getElementById('product_name_select');
         const formatSelect = document.getElementById('prod_select');
 
-        // 1️⃣ seleziona nome prodotto
         nameSelect.value = product.name;
         nameSelect.dispatchEvent(new Event('change'));
 
-        // 2️⃣ seleziona formato
         formatSelect.value = product.id;
         formatSelect.dispatchEvent(new Event('change'));
 
-        // sblocca
         unlockLotFields();
-
         await refreshTodayBatches();
 
       }, 300);
