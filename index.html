@@ -27,6 +27,7 @@
         <button class="tab-btn" data-target="tab_products" type="button">Prodotti</button>
         <button class="tab-btn" data-target="tab_production" type="button">Produzione</button>
         <button class="tab-btn" data-target="tab_sale" type="button">Vendita</button>
+        <button class="tab-btn" data-target="tab_adjust" type="button">Rettifica</button>
         <button class="tab-btn" data-target="tab_stock" type="button">Stock</button>
         <button class="tab-btn" data-target="tab_lots" type="button">Lotti</button>
       </nav>
@@ -392,6 +393,100 @@
   </div>
 </div>
     
+  </div>
+</section>
+
+
+<!-- RETTIFICA STOCK -->
+<section id="tab_adjust" class="tab">
+  <div class="section-head">
+    <h2 class="h2">Rettifica Stock</h2>
+    <div class="muted">Rottura, reso, inventario, modifica forzata… (tracciato)</div>
+  </div>
+
+  <div class="card">
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label>Lotto:</label>
+        <select id="adjust_lot" class="input">
+          <option value="">Seleziona lotto…</option>
+        </select>
+        <div class="muted" style="margin-top:6px;">
+          Stock attuale lotto:
+          <span class="pill" id="adjust_stock_badge">0</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Direzione:</label>
+        <div class="row" style="gap:12px; align-items:center;">
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="radio" name="adjust_dir" id="adjust_dir_in" checked>
+            <span>Entrata (+)</span>
+          </label>
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="radio" name="adjust_dir" id="adjust_dir_out">
+            <span>Uscita (−)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Quantità (barattoli):</label>
+        <input id="adjust_qty" class="input" type="number" min="1">
+      </div>
+
+      <div class="form-group">
+        <label>Motivo:</label>
+        <select id="adjust_reason" class="input">
+          <option value="">-- Seleziona --</option>
+          <option value="ROTTURA">Rottura</option>
+          <option value="RESO">Reso</option>
+          <option value="MODIFICA_FORZATA">Modifica forzata</option>
+          <option value="INVENTARIO">Inventario</option>
+          <option value="ALTRO">Altro</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Nota (opzionale):</label>
+        <input id="adjust_note" class="input" type="text">
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <button id="btn_adjust_commit" type="button" class="btn-primary">
+        Registra Rettifica
+      </button>
+      <div id="adjust_message" class="message"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <div class="card-head">
+      <h3>Ultime rettifiche</h3>
+      <div class="muted">Max 30</div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="adjust_table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Prodotto</th>
+            <th>Lotto</th>
+            <th>Scadenza</th>
+            <th>Qty</th>
+            <th>Motivo</th>
+          </tr>
+        </thead>
+        <tbody id="adjust_table_body">
+          <tr>
+            <td colspan="6" class="muted">Caricamento...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 

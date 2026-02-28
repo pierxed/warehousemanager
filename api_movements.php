@@ -4,7 +4,7 @@ error_reporting(0);
 require_once __DIR__ . '/api_bootstrap.php';
 
 $stmt = $pdo->query("
-  SELECT id, product_id, lot_id, quantity, type, created_at
+  SELECT id, product_id, lot_id, quantity, type, reason, note, created_at
   FROM movements
   ORDER BY created_at ASC
 ");

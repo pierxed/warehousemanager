@@ -18,26 +18,24 @@ try {
   // Facciamo lock per evitare vendite concorrenti che bucano lo stock.
   $pdo->beginTransaction();
 
-  $stmt = $pdo->prepare("\
-    SELECT
-      l.id AS lot_id,
-      b.lot_number,
-      b.expiration_date,
-      b.production_date,
-      COALESCE(SUM(CASE
-        WHEN m.type='PRODUCTION' THEN m.quantity
-        WHEN m.type='SALE' THEN -m.quantity
-        ELSE 0
-      END), 0) AS stock
-    FROM lots l
-    JOIN batches b ON b.id = l.batch_id
-    LEFT JOIN movements m ON m.lot_id = l.id
-    WHERE l.product_id = ?
-    GROUP BY l.id, b.lot_number, b.expiration_date, b.production_date
-    HAVING stock > 0
-    ORDER BY b.expiration_date ASC, b.production_date ASC, l.id ASC
-    FOR UPDATE
-  ");
+  $stmt = $pdo->prepare(
+    "SELECT "
+    . "l.id AS lot_id, "
+    . "b.lot_number, b.expiration_date, b.production_date, "
+    . "COALESCE(SUM(CASE "
+    . "WHEN m.type='PRODUCTION' THEN m.quantity "
+    . "WHEN m.type='SALE' THEN -m.quantity "
+    . "WHEN m.type='ADJUSTMENT' THEN m.quantity "
+    . "ELSE 0 END), 0) AS stock "
+    . "FROM lots l "
+    . "JOIN batches b ON b.id = l.batch_id "
+    . "LEFT JOIN movements m ON m.lot_id = l.id "
+    . "WHERE l.product_id = ? "
+    . "GROUP BY l.id, b.lot_number, b.expiration_date, b.production_date "
+    . "HAVING stock > 0 "
+    . "ORDER BY b.expiration_date ASC, b.production_date ASC, l.id ASC "
+    . "FOR UPDATE"
+  );
   $stmt->execute([$product_id]);
   $fifoLots = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -53,10 +51,10 @@ try {
     ], 409);
   }
 
-  $stmtIns = $pdo->prepare("\
-    INSERT INTO movements (product_id, lot_id, quantity, type)
-    VALUES (?, ?, ?, 'SALE')
-  ");
+  $stmtIns = $pdo->prepare(
+    "INSERT INTO movements (product_id, lot_id, quantity, type) "
+    . "VALUES (?, ?, ?, 'SALE')"
+  );
 
   $remaining = $qtyToSell;
   $consumed = [];
@@ -82,15 +80,14 @@ try {
   $pdo->commit();
 
   // stock prodotto dopo vendita
-  $stmt2 = $pdo->prepare("\
-    SELECT COALESCE(SUM(CASE
-      WHEN type='PRODUCTION' THEN quantity
-      WHEN type='SALE' THEN -quantity
-      ELSE 0
-    END), 0) AS stock
-    FROM movements
-    WHERE product_id = ?
-  ");
+  $stmt2 = $pdo->prepare(
+    "SELECT COALESCE(SUM(CASE "
+    . "WHEN type='PRODUCTION' THEN quantity "
+    . "WHEN type='SALE' THEN -quantity "
+    . "WHEN type='ADJUSTMENT' THEN quantity "
+    . "ELSE 0 END), 0) AS stock "
+    . "FROM movements WHERE product_id = ?"
+  );
   $stmt2->execute([$product_id]);
   $remainingProductStock = (int)($stmt2->fetchColumn() ?? 0);
 

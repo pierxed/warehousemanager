@@ -40,6 +40,7 @@ async function loadHomeDashboard(){
 
     if(m.type === 'PRODUCTION') stockByLot.set(lotId, prev + qty);
     else if(m.type === 'SALE') stockByLot.set(lotId, prev - qty);
+    else if(m.type === 'ADJUSTMENT') stockByLot.set(lotId, prev + qty);
   }
 
   const lotsWithStock = lots.map(l => ({
@@ -207,7 +208,10 @@ if(movesTb){
     return db - da;
   }).slice(0, 10);
 
-  const typeLabel = (t) => t === 'SALE' ? 'Vendita' : (t === 'PRODUCTION' ? 'Produzione' : t);
+  const typeLabel = (t) =>
+    t === 'SALE' ? 'Vendita' :
+    (t === 'PRODUCTION' ? 'Produzione' :
+    (t === 'ADJUSTMENT' ? 'Rettifica' : t));
 
   if(isMobile()){
       renderMobileRows(movesTb, sortedMoves.map(m => {
@@ -217,7 +221,7 @@ if(movesTb){
       const typeClass =
         m.type === 'SALE'
           ? 'sale'
-          : (m.type === 'PRODUCTION' ? 'production' : '');
+          : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
 
       const expiration = lot?.expiration_date
         ? formatDateIT(lot.expiration_date)
@@ -226,8 +230,14 @@ if(movesTb){
       const qty = Number(m.quantity)||0;
       const qtyDisplay =
         m.type === 'SALE'
-          ? `−${qty}`
-          : `+${qty}`;
+          ? `−${Math.abs(qty)}`
+          : (m.type === 'ADJUSTMENT'
+              ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
+              : `+${Math.abs(qty)}`);
+
+      const reasonTxt = (m.type === 'ADJUSTMENT' && m.reason)
+        ? `Motivo: <strong>${String(m.reason).replaceAll('_',' ')}</strong>`
+        : null;
 
       return {
         title: `${lot?.product_name || '—'} ${lot?.format ? '• ' + lot.format : ''}`,
@@ -238,7 +248,11 @@ if(movesTb){
 
           `Lotto: <strong>${lot?.lot_number || '—'}</strong>`,
 
-          `Scadenza: <strong>${expiration}</strong>`
+          `Scadenza: <strong>${expiration}</strong>`,
+
+          ...(reasonTxt ? [reasonTxt] : []),
+
+          ...(m.type === 'ADJUSTMENT' && m.note ? [`Nota: ${escapeHtml(String(m.note))}`] : [])
         ],
         right: qtyDisplay
       };
@@ -250,7 +264,7 @@ sortedMoves.forEach(m=>{
   const typeClass =
     m.type === 'SALE'
       ? 'sale'
-      : (m.type === 'PRODUCTION' ? 'production' : '');
+      : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
 
   const typeText = typeLabel(m.type);
 
@@ -261,8 +275,17 @@ sortedMoves.forEach(m=>{
   const qty = Number(m.quantity)||0;
   const qtyDisplay =
     m.type === 'SALE'
-      ? `−${qty}`
-      : `+${qty}`;
+      ? `−${Math.abs(qty)}`
+      : (m.type === 'ADJUSTMENT'
+          ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
+          : `+${Math.abs(qty)}`);
+
+  const reasonCell = (m.type === 'ADJUSTMENT')
+    ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">
+         ${m.reason ? `Motivo: <strong>${escapeHtml(String(m.reason).replaceAll('_',' '))}</strong>` : ''}
+         ${m.note ? `<div>Nota: ${escapeHtml(String(m.note))}</div>` : ''}
+       </div>`
+    : '';
 
   const tr = document.createElement('tr');
   tr.className = `move-row ${typeClass}`;
@@ -283,6 +306,7 @@ sortedMoves.forEach(m=>{
   <div style="font-size:12px;color:#94a3b8;">
     ${lot?.format || ''}
   </div>
+  ${reasonCell}
 </td>
 
   <td><strong>${lot?.lot_number || '—'}</strong></td>
@@ -405,6 +429,15 @@ function formatDateIT(dateString){
   const month = String(d.getMonth()+1).padStart(2,'0');
   const year = d.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function escapeHtml(str){
+  return String(str)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#039;');
 }
 
 function isSameLocalDay(mysqlDateTime, today = new Date()){
@@ -1450,6 +1483,140 @@ async function loadProductsTable(){
   });
 }
 
+
+// ---------- RETTIFICHE (ADJUSTMENT) ----------
+let ADJUST_TAB_READY = false;
+
+async function loadAdjustTab(){
+
+  const lotSelect = document.getElementById('adjust_lot');
+  const qtyInput = document.getElementById('adjust_qty');
+  const dirOut = document.getElementById('adjust_dir_out');
+  const reasonSelect = document.getElementById('adjust_reason');
+  const noteInput = document.getElementById('adjust_note');
+  const btn = document.getElementById('btn_adjust_commit');
+  const msg = document.getElementById('adjust_message');
+  const stockBadge = document.getElementById('adjust_stock_badge');
+  const tb = document.getElementById('adjust_table_body');
+
+  if(!lotSelect || !tb) return;
+
+  const lots = await fetchJSON('api_lots.php');
+  const movements = await fetchJSON('api_movements.php');
+
+  const stockByLot = new Map();
+
+  movements.forEach(m=>{
+    const id = Number(m.lot_id);
+    if(!id) return;
+
+    const prev = stockByLot.get(id) || 0;
+    const qty = Number(m.quantity)||0;
+
+    if(m.type === 'PRODUCTION') stockByLot.set(id, prev + qty);
+    else if(m.type === 'SALE') stockByLot.set(id, prev - qty);
+    else if(m.type === 'ADJUSTMENT') stockByLot.set(id, prev + qty);
+  });
+
+  const lotsWithStock = lots.map(l => ({
+    ...l,
+    stock: stockByLot.get(Number(l.lot_id)) || 0
+  }));
+
+  lotSelect.innerHTML = '<option value="">Seleziona lotto…</option>';
+
+  lotsWithStock.forEach(l=>{
+    const opt = document.createElement('option');
+    opt.value = l.lot_id;
+    opt.textContent =
+      `${l.product_name} • ${l.format} • Lotto ${l.lot_number} • Stock ${l.stock}`;
+    opt.dataset.stock = l.stock;
+    lotSelect.appendChild(opt);
+  });
+
+  lotSelect.addEventListener('change', ()=>{
+    const opt = lotSelect.options[lotSelect.selectedIndex];
+    stockBadge.textContent = opt?.dataset?.stock || 0;
+  });
+
+  if(!ADJUST_TAB_READY){
+    btn.addEventListener('click', async ()=>{
+
+      msg.className = 'message';
+      msg.textContent = '';
+
+      const lot_id = Number(lotSelect.value||0);
+      const quantity = Number(qtyInput.value||0);
+      const direction = dirOut?.checked ? 'OUT' : 'IN';
+      const reason = reasonSelect.value;
+      const note = noteInput.value;
+
+      if(!lot_id || quantity<=0){
+        msg.classList.add('error');
+        msg.textContent = 'Dati non validi.';
+        return;
+      }
+
+      const res = await fetchJSON('api_adjust_stock.php',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          lot_id,
+          quantity,
+          direction,
+          reason,
+          note
+        })
+      });
+
+      if(!res.success){
+        msg.classList.add('error');
+        msg.textContent = res.error || 'Errore.';
+        return;
+      }
+
+      msg.classList.add('success');
+      msg.textContent = 'Rettifica registrata.';
+
+      qtyInput.value='';
+      noteInput.value='';
+
+      await loadHomeDashboard();
+      await loadAdjustTab();
+    });
+
+    ADJUST_TAB_READY = true;
+  }
+
+  const adjustments = movements
+    .filter(m=>m.type==='ADJUSTMENT')
+    .sort((a,b)=> new Date(b.created_at)-new Date(a.created_at))
+    .slice(0,30);
+
+  const lotMap = new Map(lotsWithStock.map(l=>[Number(l.lot_id),l]));
+
+  tb.innerHTML = adjustments.map(m=>{
+    const lot = lotMap.get(Number(m.lot_id));
+    const exp = lot?.expiration_date
+      ? formatDateIT(lot.expiration_date)
+      : '—';
+
+    const qty = Number(m.quantity)||0;
+    const qDisp = qty<0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`;
+
+    return `
+      <tr>
+        <td>${formatDateIT(m.created_at)}</td>
+        <td>${lot?.product_name || '—'}</td>
+        <td><strong>${lot?.lot_number || '—'}</strong></td>
+        <td>${exp}</td>
+        <td style="font-weight:900;">${qDisp}</td>
+        <td>${m.reason || '—'}</td>
+      </tr>
+    `;
+  }).join('') || `<tr><td colspan="6" class="muted">Nessuna rettifica</td></tr>`;
+}
+
 // ---------- INIT ----------
 window.addEventListener('DOMContentLoaded', async ()=>{
 
@@ -1467,6 +1634,11 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       });
 
       target.classList.add('active');
+
+      // lazy-load tab content
+        if(targetId === 'tab_adjust'){
+          setTimeout(loadAdjustTab, 0);
+        }
     });
   });
 

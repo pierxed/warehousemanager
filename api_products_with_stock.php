@@ -19,6 +19,7 @@ try {
                 CASE
                     WHEN m.type = 'PRODUCTION' THEN m.quantity
                     WHEN m.type = 'SALE' THEN -m.quantity
+                    WHEN m.type = 'ADJUSTMENT' THEN m.quantity
                     ELSE 0
                 END
             ), 0) AS stock
