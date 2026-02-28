@@ -194,52 +194,112 @@ async function loadHomeDashboard(){
     }
   }
 
-  const movesTb = document.getElementById('last_moves_table');
-  if(movesTb){
-    movesTb.innerHTML = '';
+ // ---- HOME: ultimi movimenti (10) ----
+const movesTb = document.getElementById('last_moves_table');
+if(movesTb){
+  movesTb.innerHTML = '';
 
-    const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
+  const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
 
-    const sortedMoves = [...movements].sort((a,b)=>{
-      const da = new Date((a.created_at||'').replace(' ', 'T'));
-      const db = new Date((b.created_at||'').replace(' ', 'T'));
-      return db - da;
-    }).slice(0, 10);
+  const sortedMoves = [...movements].sort((a,b)=>{
+    const da = new Date((a.created_at||'').replace(' ', 'T'));
+    const db = new Date((b.created_at||'').replace(' ', 'T'));
+    return db - da;
+  }).slice(0, 10);
 
-    const typeLabel = (t) => t === 'SALE' ? 'Vendita' : (t === 'PRODUCTION' ? 'Produzione' : t);
+  const typeLabel = (t) => t === 'SALE' ? 'Vendita' : (t === 'PRODUCTION' ? 'Produzione' : t);
 
-    if(isMobile()){
+  if(isMobile()){
       renderMobileRows(movesTb, sortedMoves.map(m => {
-        const lot = lotById.get(Number(m.lot_id)) || null;
-        return {
-          title: lot?.product_name || '—',
-          lines: [
-            `${typeLabel(m.type)} • <strong>${formatDateIT(m.created_at)}</strong>`,
-            `Lotto: <strong>${lot?.lot_number || '—'}</strong>`
-          ],
-          right: `${Number(m.quantity)||0}`
-        };
-      }));
-    } else {
-      sortedMoves.forEach(m=>{
-        const lot = lotById.get(Number(m.lot_id)) || null;
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${formatDateIT(m.created_at)}</td>
-          <td>${typeLabel(m.type)}</td>
-          <td>${lot?.product_name || '—'}</td>
-          <td>${lot?.lot_number || '—'}</td>
-          <td>${Number(m.quantity)||0}</td>
-        `;
-        movesTb.appendChild(tr);
-      });
+      const lot = lotById.get(Number(m.lot_id)) || null;
 
-      if(sortedMoves.length === 0){
-        movesTb.innerHTML = `<tr><td colspan="5" class="muted">Nessun movimento</td></tr>`;
-      }
+      const typeClass =
+        m.type === 'SALE'
+          ? 'sale'
+          : (m.type === 'PRODUCTION' ? 'production' : '');
+
+      const expiration = lot?.expiration_date
+        ? formatDateIT(lot.expiration_date)
+        : '—';
+
+      const qty = Number(m.quantity)||0;
+      const qtyDisplay =
+        m.type === 'SALE'
+          ? `−${qty}`
+          : `+${qty}`;
+
+      return {
+        title: `${lot?.product_name || '—'} ${lot?.format ? '• ' + lot.format : ''}`,
+        lines: [
+          `<span class="badge-move ${typeClass}">
+            ${typeLabel(m.type)}
+          </span> • <strong>${formatDateIT(m.created_at)}</strong>`,
+
+          `Lotto: <strong>${lot?.lot_number || '—'}</strong>`,
+
+          `Scadenza: <strong>${expiration}</strong>`
+        ],
+        right: qtyDisplay
+      };
+    }));
+  } else {
+sortedMoves.forEach(m=>{
+  const lot = lotById.get(Number(m.lot_id)) || null;
+
+  const typeClass =
+    m.type === 'SALE'
+      ? 'sale'
+      : (m.type === 'PRODUCTION' ? 'production' : '');
+
+  const typeText = typeLabel(m.type);
+
+  const expiration = lot?.expiration_date
+    ? formatDateIT(lot.expiration_date)
+    : '—';
+
+  const qty = Number(m.quantity)||0;
+  const qtyDisplay =
+    m.type === 'SALE'
+      ? `−${qty}`
+      : `+${qty}`;
+
+  const tr = document.createElement('tr');
+  tr.className = `move-row ${typeClass}`;
+
+  tr.innerHTML = `
+  <td>${formatDateIT(m.created_at)}</td>
+
+  <td>
+    <span class="badge-move ${typeClass}">
+      ${typeText}
+    </span>
+  </td>
+
+  <td>
+  <div style="font-weight:700;">
+    ${lot?.product_name || '—'}
+  </div>
+  <div style="font-size:12px;color:#94a3b8;">
+    ${lot?.format || ''}
+  </div>
+</td>
+
+  <td><strong>${lot?.lot_number || '—'}</strong></td>
+
+  <td>${expiration}</td>
+
+  <td style="font-weight:900;">${qtyDisplay}</td>
+`;
+
+  movesTb.appendChild(tr);
+});
+
+    if(sortedMoves.length === 0){
+      movesTb.innerHTML = `<tr><td colspan="6" class="muted">Nessun movimento</td></tr>`;
     }
   }
+}
 
   const salesEl = document.getElementById('salesChart');
   if(salesEl){
