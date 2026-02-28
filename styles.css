@@ -1000,3 +1000,20 @@ canvas{
   color:white;
   font-weight:600;
 }
+mark.hl{
+  padding: 0 2px;
+  border-radius: 4px;
+  background: rgba(250, 204, 21, .55);
+  color: inherit;
+}
+mark.hl{
+  background: #facc15 !important;
+  color: #111827 !important;
+  padding: 0 2px !important;
+  border-radius: 4px !important;
+}
+#lots_table mark.hl{
+  background: rgba(0,0,0,.35) !important;
+  color: #fff !important;
+  outline: 1px solid rgba(255,255,255,.25);
+}

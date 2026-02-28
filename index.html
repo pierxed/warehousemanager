@@ -47,10 +47,18 @@
           <p class="page-subtitle">Produzione, stock e lotti — tutto in un posto</p>
         </div>
 
-        <div class="topbar-actions">
-          <!-- opzionale: puoi usarla più avanti per filtrare tabelle -->
-          <input class="input" id="global_search" placeholder="Cerca (EAN, lotto, prodotto)..." />
+       <div class="topbar-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input class="input" id="global_search" placeholder="Cerca (EAN, lotto, prodotto)..." />
+
+        <div id="global_search_hint" class="muted" style="display:none; align-items:center; gap:8px;">
+        <span>Filtro attivo:</span>
+          <span id="global_search_hint_text" class="pill" style="padding:6px 10px;"></span>
+        
+          <button id="global_search_clear" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">
+            ✕ reset
+          </button>
         </div>
+      </div>
       </header>
 
       <!-- Toasts: non tocchiamo ID -->

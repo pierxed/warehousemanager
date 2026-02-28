@@ -24,6 +24,92 @@ function renderMobileRows(tbody, rows){
   `).join("") || `<tr><td class="muted" style="padding:12px 14px;">Nessuna</td></tr>`;
 }
 
+// ==========================
+// GLOBAL SEARCH (filter + highlight)
+// ==========================
+const Cache = {
+  homeLotsWithStock: null,  // array lots con stock calcolato
+  homeMovements: null,      // movimenti raw (per ultimi movimenti)
+  adjustLotsWithStock: null,
+  adjustMovements: null,
+  productsRows: null        // api_products_with_stock.php (array rows)
+};
+
+function getGlobalQuery(){
+  return (document.getElementById('global_search')?.value || '').trim();
+}
+function tokenize(q){
+  return String(q || '').trim().split(/\s+/).filter(Boolean).slice(0, 8);
+}
+function matchesTokens(haystack, tokens){
+  const h = String(haystack || '').toLowerCase();
+  return tokens.every(t => h.includes(String(t).toLowerCase()));
+}
+function escapeRegExp(str){
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function highlightTextRaw(text, tokens){
+  const raw = String(text ?? '');
+  if(!tokens.length) return escapeHtml(raw);
+
+  let out = raw;
+
+  // tokens lunghi prima (evita che "to" mangi "tonno")
+  const sorted = [...tokens].sort((a,b)=> b.length - a.length);
+
+  sorted.forEach(t => {
+    if(!t) return;
+    const re = new RegExp(`(${escapeRegExp(t)})`, 'ig');
+    out = out.replace(re, '[[HL]]$1[[/HL]]');
+  });
+
+  out = escapeHtml(out)
+    .replaceAll('[[HL]]', '<mark class="hl">')
+    .replaceAll('[[/HL]]', '</mark>');
+
+  return out;
+}
+
+function updateGlobalSearchHint(){
+  const q = getGlobalQuery();
+  const hint = document.getElementById('global_search_hint');
+  const txt = document.getElementById('global_search_hint_text');
+  if(!hint || !txt) return;
+
+  if(q){
+    txt.textContent = q;
+    hint.style.display = 'inline-flex';
+  } else {
+    hint.style.display = 'none';
+    txt.textContent = '';
+  }
+}
+
+// chiamata unica per riapplicare filtro a tutte le viste
+function applyGlobalSearch(){
+  const tokens = tokenize(getGlobalQuery());
+
+  // Prodotti
+  if(Cache.productsRows) renderProductsFromRows(Cache.productsRows, tokens);
+
+  // Home: ultimi movimenti
+  if(Cache.homeMovements && Cache.homeLotsWithStock) renderLastMovesFromCache(tokens);
+
+  // Rettifiche
+  if(Cache.adjustMovements && Cache.adjustLotsWithStock) renderAdjustmentsFromCache(tokens);
+
+  // Stock e Lotti (usano cache Home)
+  if(Cache.homeLotsWithStock) {
+    renderStockTableFromCache(tokens);
+    renderLotsTableFromCache(tokens);
+  }
+
+  updateGlobalSearchHint();
+}
+
+// ==========================
+// HOME DASHBOARD
+// ==========================
 async function loadHomeDashboard(){
 
   const lots = await fetchJSON('api_lots.php');
@@ -49,79 +135,16 @@ async function loadHomeDashboard(){
     stock: stockByLot.get(Number(l.lot_id)) || 0
   }));
 
+  Cache.homeLotsWithStock = lotsWithStock;
+  Cache.homeMovements = movements;
+
   const totalStock = lotsWithStock.reduce((s,l)=> s + Math.max(0, Number(l.stock)||0), 0);
   document.getElementById('card_total_stock').innerText = totalStock;
 
-  // ---------- TAB STOCK ----------
-  const stockBody = document.querySelector('#stock_table tbody');
-  if(stockBody){
-    stockBody.innerHTML = '';
-
-    const stockByProduct = new Map();
-
-    for(const l of lotsWithStock){
-      const pid = Number(l.product_id);
-      const prev = stockByProduct.get(pid) || 0;
-      stockByProduct.set(pid, prev + (Number(l.stock)||0));
-    }
-
-    const productsMap = new Map();
-    for(const l of lotsWithStock){
-      productsMap.set(Number(l.product_id), {
-        fish_type: l.fish_type,
-        name: l.product_name,
-        format: l.format,
-        ean: l.ean
-      });
-    }
-
-    [...productsMap.entries()].forEach(([pid, info])=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${info.fish_type}</td>
-        <td>${info.name}</td>
-        <td>${info.format}</td>
-        <td>${info.ean}</td>
-        <td>${stockByProduct.get(pid) || 0}</td>
-      `;
-      stockBody.appendChild(tr);
-    });
-  }
-
-  // ---------- TAB LOTTI ----------
-  const lotsBody = document.querySelector('#lots_table tbody');
-  if(lotsBody){
-    lotsBody.innerHTML = '';
-
-    lotsWithStock
-      .sort((a,b)=> new Date(a.expiration_date) - new Date(b.expiration_date))
-      .forEach(l=>{
-
-        const diffDays = Math.ceil((new Date(l.expiration_date) - today)/(1000*60*60*24));
-
-        let bg = '';
-        if(diffDays<=30) bg='#e84118';
-        else if(diffDays<=90) bg='#fbc531';
-        else bg='#44bd32';
-
-        const tr = document.createElement('tr');
-        tr.style.backgroundColor = bg;
-        tr.style.color = 'white';
-
-        tr.innerHTML = `
-          <td>${l.fish_type}</td>
-          <td>${l.product_name}</td>
-          <td>${l.format}</td>
-          <td>${l.ean}</td>
-          <td>${l.lot_number}</td>
-          <td>${l.stock}</td>
-          <td>${formatDateIT(l.production_date)}</td>
-          <td>${formatDateIT(l.expiration_date)}</td>
-        `;
-
-        lotsBody.appendChild(tr);
-      });
-  }
+  // ✅ Stock + Lotti (con highlight)
+  const tokens = tokenize(getGlobalQuery());
+  renderStockTableFromCache(tokens);
+  renderLotsTableFromCache(tokens);
 
   const totalTodayProduction = movements
     .filter(m => m.type === 'PRODUCTION' && isSameLocalDay(m.created_at, today))
@@ -196,135 +219,8 @@ async function loadHomeDashboard(){
     }
   }
 
- // ---- HOME: ultimi movimenti (10) ----
-const movesTb = document.getElementById('last_moves_table');
-if(movesTb){
-  movesTb.innerHTML = '';
-
-  const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
-
-  const sortedMoves = [...movements].sort((a,b)=>{
-    const da = new Date((a.created_at||'').replace(' ', 'T'));
-    const db = new Date((b.created_at||'').replace(' ', 'T'));
-    return db - da;
-  }).slice(0, 10);
-
-  const typeLabel = (t) =>
-    t === 'SALE' ? 'Vendita' :
-    (t === 'PRODUCTION' ? 'Produzione' :
-    (t === 'ADJUSTMENT' ? 'Rettifica' : t));
-
-  if(isMobile()){
-      renderMobileRows(movesTb, sortedMoves.map(m => {
-
-      const lot = lotById.get(Number(m.lot_id)) || null;
-
-      const typeClass =
-        m.type === 'SALE'
-          ? 'sale'
-          : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
-
-      const expiration = lot?.expiration_date
-        ? formatDateIT(lot.expiration_date)
-        : '—';
-
-      const qty = Number(m.quantity)||0;
-      const qtyDisplay =
-        m.type === 'SALE'
-          ? `−${Math.abs(qty)}`
-          : (m.type === 'ADJUSTMENT'
-              ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
-              : `+${Math.abs(qty)}`);
-
-      const reasonTxt = (m.type === 'ADJUSTMENT' && m.reason)
-        ? `Motivo: <strong>${String(m.reason).replaceAll('_',' ')}</strong>`
-        : null;
-
-      return {
-        title: `${lot?.product_name || '—'} ${lot?.format ? '• ' + lot.format : ''}`,
-        lines: [
-          `<span class="badge-move ${typeClass}">
-            ${typeLabel(m.type)}
-          </span> • <strong>${formatDateIT(m.created_at)}</strong>`,
-
-          `Lotto: <strong>${lot?.lot_number || '—'}</strong>`,
-
-          `Scadenza: <strong>${expiration}</strong>`,
-
-          ...(reasonTxt ? [reasonTxt] : []),
-
-          ...(m.type === 'ADJUSTMENT' && m.note ? [`Nota: ${escapeHtml(String(m.note))}`] : [])
-        ],
-        right: qtyDisplay
-      };
-    }));
-  } else {
-sortedMoves.forEach(m=>{
-  const lot = lotById.get(Number(m.lot_id)) || null;
-
-  const typeClass =
-    m.type === 'SALE'
-      ? 'sale'
-      : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
-
-  const typeText = typeLabel(m.type);
-
-  const expiration = lot?.expiration_date
-    ? formatDateIT(lot.expiration_date)
-    : '—';
-
-  const qty = Number(m.quantity)||0;
-  const qtyDisplay =
-    m.type === 'SALE'
-      ? `−${Math.abs(qty)}`
-      : (m.type === 'ADJUSTMENT'
-          ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
-          : `+${Math.abs(qty)}`);
-
-  const reasonCell = (m.type === 'ADJUSTMENT')
-    ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">
-         ${m.reason ? `Motivo: <strong>${escapeHtml(String(m.reason).replaceAll('_',' '))}</strong>` : ''}
-         ${m.note ? `<div>Nota: ${escapeHtml(String(m.note))}</div>` : ''}
-       </div>`
-    : '';
-
-  const tr = document.createElement('tr');
-  tr.className = `move-row ${typeClass}`;
-
-  tr.innerHTML = `
-  <td>${formatDateIT(m.created_at)}</td>
-
-  <td>
-    <span class="badge-move ${typeClass}">
-      ${typeText}
-    </span>
-  </td>
-
-  <td>
-  <div style="font-weight:700;">
-    ${lot?.product_name || '—'}
-  </div>
-  <div style="font-size:12px;color:#94a3b8;">
-    ${lot?.format || ''}
-  </div>
-  ${reasonCell}
-</td>
-
-  <td><strong>${lot?.lot_number || '—'}</strong></td>
-
-  <td>${expiration}</td>
-
-  <td style="font-weight:900;">${qtyDisplay}</td>
-`;
-
-  movesTb.appendChild(tr);
-});
-
-    if(sortedMoves.length === 0){
-      movesTb.innerHTML = `<tr><td colspan="6" class="muted">Nessun movimento</td></tr>`;
-    }
-  }
-}
+  // ✅ ultimi movimenti (con highlight + filtro globale)
+  renderLastMovesFromCache(tokens);
 
   const salesEl = document.getElementById('salesChart');
   if(salesEl){
@@ -372,6 +268,135 @@ sortedMoves.forEach(m=>{
   }
 
   showExpiryToasts(expiringLots);
+}
+
+function renderLastMovesFromCache(tokens){
+  const movesTb = document.getElementById('last_moves_table');
+  if(!movesTb) return;
+
+  const lotsWithStock = Cache.homeLotsWithStock || [];
+  const movements = Cache.homeMovements || [];
+
+  const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
+
+  const typeLabel = (t) =>
+    t === 'SALE' ? 'Vendita' :
+    (t === 'PRODUCTION' ? 'Produzione' :
+    (t === 'ADJUSTMENT' ? 'Rettifica' : t));
+
+  const sortedMovesAll = [...movements].sort((a,b)=>{
+    const da = new Date((a.created_at||'').replace(' ', 'T'));
+    const db = new Date((b.created_at||'').replace(' ', 'T'));
+    return db - da;
+  });
+
+  // filtro globale
+  let sortedMoves = sortedMovesAll;
+  if(tokens.length){
+    sortedMoves = sortedMovesAll.filter(m=>{
+      const lot = lotById.get(Number(m.lot_id)) || null;
+      const hay =
+        `${m.created_at} ${m.type} ${m.reason||''} ${m.note||''} ${m.quantity||''} `+
+        `${lot?.fish_type||''} ${lot?.product_name||''} ${lot?.format||''} ${lot?.ean||''} ${lot?.lot_number||''} ${lot?.expiration_date||''}`;
+      return matchesTokens(hay, tokens);
+    });
+  }
+
+  sortedMoves = sortedMoves.slice(0, 10);
+
+  movesTb.innerHTML = '';
+
+  if(isMobile()){
+    renderMobileRows(movesTb, sortedMoves.map(m => {
+      const lot = lotById.get(Number(m.lot_id)) || null;
+
+      const typeClass =
+        m.type === 'SALE'
+          ? 'sale'
+          : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
+
+      const expiration = lot?.expiration_date
+        ? formatDateIT(lot.expiration_date)
+        : '—';
+
+      const qty = Number(m.quantity)||0;
+      const qtyDisplay =
+        m.type === 'SALE'
+          ? `−${Math.abs(qty)}`
+          : (m.type === 'ADJUSTMENT'
+              ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
+              : `+${Math.abs(qty)}`);
+
+      const reasonTxt = (m.type === 'ADJUSTMENT' && m.reason)
+        ? `Motivo: <strong>${highlightTextRaw(String(m.reason).replaceAll('_',' '), tokens)}</strong>`
+        : null;
+
+      return {
+        title: `${highlightTextRaw(lot?.product_name || '—', tokens)} ${lot?.format ? '• ' + highlightTextRaw(lot.format, tokens) : ''}`,
+        lines: [
+          `<span class="badge-move ${typeClass}">${highlightTextRaw(typeLabel(m.type), tokens)}</span> • <strong>${highlightTextRaw(formatDateIT(m.created_at), tokens)}</strong>`,
+          `Lotto: <strong>${highlightTextRaw(lot?.lot_number || '—', tokens)}</strong>`,
+          `Scadenza: <strong>${highlightTextRaw(expiration, tokens)}</strong>`,
+          ...(reasonTxt ? [reasonTxt] : []),
+          ...(m.type === 'ADJUSTMENT' && m.note ? [`Nota: ${highlightTextRaw(String(m.note), tokens)}`] : [])
+        ],
+        right: highlightTextRaw(qtyDisplay, tokens)
+      };
+    }));
+    return;
+  }
+
+  sortedMoves.forEach(m=>{
+    const lot = lotById.get(Number(m.lot_id)) || null;
+
+    const typeClass =
+      m.type === 'SALE'
+        ? 'sale'
+        : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
+
+    const typeText = typeLabel(m.type);
+
+    const expiration = lot?.expiration_date
+      ? formatDateIT(lot.expiration_date)
+      : '—';
+
+    const qty = Number(m.quantity)||0;
+    const qtyDisplay =
+      m.type === 'SALE'
+        ? `−${Math.abs(qty)}`
+        : (m.type === 'ADJUSTMENT'
+            ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
+            : `+${Math.abs(qty)}`);
+
+    const reasonCell = (m.type === 'ADJUSTMENT')
+      ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">
+           ${m.reason ? `Motivo: <strong>${highlightTextRaw(String(m.reason).replaceAll('_',' '), tokens)}</strong>` : ''}
+           ${m.note ? `<div>Nota: ${highlightTextRaw(String(m.note), tokens)}</div>` : ''}
+         </div>`
+      : '';
+
+    const tr = document.createElement('tr');
+    tr.className = `move-row ${typeClass}`;
+
+    tr.innerHTML = `
+      <td>${highlightTextRaw(formatDateIT(m.created_at), tokens)}</td>
+      <td><span class="badge-move ${typeClass}">${highlightTextRaw(typeText, tokens)}</span></td>
+      <td>
+        <div style="font-weight:700;">${highlightTextRaw(lot?.product_name || '—', tokens)}</div>
+        <div style="font-size:12px;color:#94a3b8;">${highlightTextRaw(lot?.format || '', tokens)}</div>
+        ${reasonCell}
+      </td>
+      <td><strong>${highlightTextRaw(lot?.lot_number || '—', tokens)}</strong></td>
+      <td>${highlightTextRaw(expiration, tokens)}</td>
+      <td style="font-weight:900;">${highlightTextRaw(qtyDisplay, tokens)}</td>
+    `;
+
+    movesTb.appendChild(tr);
+  });
+
+  if(sortedMoves.length === 0){
+    movesTb.innerHTML = `<tr><td colspan="6" class="muted">Nessun risultato</td></tr>`;
+  }
 }
 
 function showExpiryToasts(expiringLots){
@@ -471,8 +496,8 @@ function extractWeight(format){
 
 async function loadProducts() {
 
-PRODUCTS = await fetchJSON('api_products.php');
-PRODUCTS = PRODUCTS || [];
+  PRODUCTS = await fetchJSON('api_products.php');
+  PRODUCTS = PRODUCTS || [];
 
   const productNames = [...new Set(PRODUCTS.map(p => p.name))]
     .sort((a,b)=> a.localeCompare(b));
@@ -780,7 +805,6 @@ document.getElementById('btn_production')?.addEventListener('click', async ()=>{
   }
 });
 
-// ---------- VENDITA ----------
 // ---------- VENDITA ----------
 const SaleUI = (() => {
   let currentProduct = null;
@@ -1299,7 +1323,6 @@ const SaleUI = (() => {
       clearConfirmBox();
       if (!isManual()) return;
       if (!currentProduct?.id) return;
-      // non resetto selectedLots (sennò ti incazzi), però aggiorno status
       renderManualStatus();
       await fetchSuggestedLots(currentProduct.id);
       renderSuggestedChips();
@@ -1342,11 +1365,13 @@ const SaleUI = (() => {
   return { init };
 })();
 
-// ---------- PRODOTTI TAB ----------
-async function loadProductsTable(e){
+// ==========================
+// PRODOTTI TAB (render separato per filtro + highlight)
+// ==========================
+async function loadProductsTable(){
   const res = await fetchJSON('api_products_with_stock.php');
 
-  // ✅ normalizza: accetta array puro oppure oggetto {rows:[...]}
+  // normalizza: accetta array puro oppure oggetto {rows:[...]}
   const rows = Array.isArray(res) ? res : (Array.isArray(res?.rows) ? res.rows : []);
 
   if(!Array.isArray(rows)){
@@ -1354,199 +1379,213 @@ async function loadProductsTable(e){
     return;
   }
 
+  Cache.productsRows = rows;
+
+  const tokens = tokenize(getGlobalQuery());
+  renderProductsFromRows(rows, tokens);
+}
+
+function renderProductsFromRows(rows, tokens){
   const container = document.getElementById('products_container');
   if(!container) return;
 
-  const toggle = document.getElementById('toggle_archived_products');
-  const showArchived = (e?.target?.id === 'toggle_archived_products')
-    ? !!e.target.checked
-    : !!toggle?.checked;
+  container.innerHTML = '';
 
-  container.innerHTML='';
+  const visibleRows = (rows || [])
+    .filter(p => SHOW_ARCHIVED_PRODUCTS ? true : Number(p.is_active ?? 1) === 1)
+    .filter(p => {
+      if(!tokens.length) return true;
+      return matchesTokens(
+        `${p.name||''} ${p.format||''} ${p.units_per_tray||''} ${p.ean||''} ${p.stock||''} ${Number(p.is_active??1)===0?'archiviato':''}`,
+        tokens
+      );
+    });
 
-  rows
-    .filter(p => showArchived ? true : Number(p.is_active ?? 1) === 1)
-    .forEach(p=>{
+  visibleRows.forEach(p=>{
+    const imageSrc = p.image_path ? p.image_path : 'uploads/stock.jpg';
 
-      const imageSrc = p.image_path ? p.image_path : 'uploads/stock.jpg';
+    const card=document.createElement('div');
+    card.className='product-card';
+    card.dataset.id = p.id;
 
-      const card=document.createElement('div');
-      card.className='product-card';
-      card.dataset.id = p.id;
+    card.innerHTML=`
+      <div class="product-header">
+        <img src="${imageSrc}" class="product-img">
 
-      card.innerHTML=`
-        <div class="product-header">
-          <img src="${imageSrc}" class="product-img">
-
-          <div class="product-info">
-            <div class="view-mode">
-              <div class="product-name">
-                ${p.name}
-                ${Number(p.is_active ?? 1) === 0
-                  ? `<span style="
-                      margin-left:8px;
-                      font-size:11px;
-                      padding:2px 8px;
-                      border-radius:999px;
-                      background:#ef4444;
-                      color:white;
-                    ">ARCHIVIATO</span>`
-                  : ''}
-              </div>
-              <div class="product-meta">Formato: ${p.format || ''}</div>
-              <div class="product-meta">
-                Unità per vassoio: <strong>${p.units_per_tray}</strong>
-              </div>
-              <div class="product-meta">EAN: ${p.ean}</div>
+        <div class="product-info">
+          <div class="view-mode">
+            <div class="product-name">
+              ${highlightTextRaw(p.name, tokens)}
+              ${Number(p.is_active ?? 1) === 0
+                ? `<span style="
+                    margin-left:8px;
+                    font-size:11px;
+                    padding:2px 8px;
+                    border-radius:999px;
+                    background:#ef4444;
+                    color:white;
+                  ">ARCHIVIATO</span>`
+                : ''}
             </div>
-
-            <div class="edit-mode hidden">
-              <input class="edit-name" value="${p.name}">
-              <input class="edit-format" value="${p.format || ''}">
-              <input class="edit-units" type="number" value="${p.units_per_tray}" min="1">
+            <div class="product-meta">Formato: ${highlightTextRaw(p.format || '', tokens)}</div>
+            <div class="product-meta">
+              Unità per vassoio: <strong>${highlightTextRaw(String(p.units_per_tray ?? ''), tokens)}</strong>
             </div>
+            <div class="product-meta">EAN: ${highlightTextRaw(p.ean || '', tokens)}</div>
+          </div>
+
+          <div class="edit-mode hidden">
+            <input class="edit-name" value="${escapeHtml(p.name)}">
+            <input class="edit-format" value="${escapeHtml(p.format || '')}">
+            <input class="edit-units" type="number" value="${Number(p.units_per_tray||0)}" min="1">
           </div>
         </div>
+      </div>
 
-        <div class="product-stock">
-          Stock totale: ${p.stock} barattoli
-        </div>
+      <div class="product-stock">
+        Stock totale: ${highlightTextRaw(String(p.stock ?? 0), tokens)} barattoli
+      </div>
 
-        <div class="product-actions view-mode">
-          <button class="btn-small btn-edit">Modifica</button>
+      <div class="product-actions view-mode">
+        <button class="btn-small btn-edit">Modifica</button>
 
-          <button class="btn-small btn-danger btn-delete">
-            ${Number(p.is_active ?? 1) === 1 ? 'Archivia' : 'Elimina definitivamente'}
-          </button>
+        <button class="btn-small btn-danger btn-delete">
+          ${Number(p.is_active ?? 1) === 1 ? 'Archivia' : 'Elimina definitivamente'}
+        </button>
 
-          ${Number(p.is_active ?? 1) === 0
-            ? `<button class="btn-small btn-restore">Riattiva</button>`
-            : ''
-          }
-        </div>
-
-        <div class="product-actions edit-mode hidden">
-          <button class="btn-small btn-save">Salva</button>
-          <button class="btn-small btn-cancel">Annulla</button>
-        </div>
-      `;
-
-      const editBtn = card.querySelector('.btn-edit');
-      const deleteBtn = card.querySelector('.btn-delete');
-      const restoreBtn = card.querySelector('.btn-restore');
-      const saveBtn = card.querySelector('.btn-save');
-      const cancelBtn = card.querySelector('.btn-cancel');
-
-      const viewModes = card.querySelectorAll('.view-mode');
-      const editModes = card.querySelectorAll('.edit-mode');
-
-      editBtn.addEventListener('click', ()=>{
-        card.classList.add('editing');
-        viewModes.forEach(el=>el.classList.add('hidden'));
-        editModes.forEach(el=>el.classList.remove('hidden'));
-      });
-
-      restoreBtn?.addEventListener('click', async ()=>{
-        const res = await fetchJSON('api_restore_product.php',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ id:p.id })
-        });
-
-        if(res?.error){
-          alert(res.error);
-          return;
+        ${Number(p.is_active ?? 1) === 0
+          ? `<button class="btn-small btn-restore">Riattiva</button>`
+          : ''
         }
+      </div>
 
-        await loadProducts();
-        await loadProductsTable();
+      <div class="product-actions edit-mode hidden">
+        <button class="btn-small btn-save">Salva</button>
+        <button class="btn-small btn-cancel">Annulla</button>
+      </div>
+    `;
+
+    const editBtn = card.querySelector('.btn-edit');
+    const deleteBtn = card.querySelector('.btn-delete');
+    const restoreBtn = card.querySelector('.btn-restore');
+    const saveBtn = card.querySelector('.btn-save');
+    const cancelBtn = card.querySelector('.btn-cancel');
+
+    const viewModes = card.querySelectorAll('.view-mode');
+    const editModes = card.querySelectorAll('.edit-mode');
+
+    editBtn.addEventListener('click', ()=>{
+      card.classList.add('editing');
+      viewModes.forEach(el=>el.classList.add('hidden'));
+      editModes.forEach(el=>el.classList.remove('hidden'));
+    });
+
+    restoreBtn?.addEventListener('click', async ()=>{
+      const res = await fetchJSON('api_restore_product.php',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id:p.id })
       });
 
-      cancelBtn.addEventListener('click', ()=>{
-        card.classList.remove('editing');
-        editModes.forEach(el=>el.classList.add('hidden'));
-        viewModes.forEach(el=>el.classList.remove('hidden'));
+      if(res?.error){
+        alert(res.error);
+        return;
+      }
+
+      await loadProducts();
+      await loadProductsTable();
+      applyGlobalSearch();
+    });
+
+    cancelBtn.addEventListener('click', ()=>{
+      card.classList.remove('editing');
+      editModes.forEach(el=>el.classList.add('hidden'));
+      viewModes.forEach(el=>el.classList.remove('hidden'));
+    });
+
+    saveBtn.addEventListener('click', async ()=>{
+      const newName = card.querySelector('.edit-name').value.trim();
+      const newFormat = card.querySelector('.edit-format').value.trim();
+      const newUnits = parseInt(card.querySelector('.edit-units').value,10);
+
+      if(!newName || newUnits <= 0){
+        alert("Dati non validi");
+        return;
+      }
+
+      const res = await fetchJSON('api_update_product.php',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          id:p.id,
+          name:newName,
+          format:newFormat,
+          units:newUnits
+        })
       });
 
-      saveBtn.addEventListener('click', async ()=>{
-        const newName = card.querySelector('.edit-name').value.trim();
-        const newFormat = card.querySelector('.edit-format').value.trim();
-        const newUnits = parseInt(card.querySelector('.edit-units').value,10);
+      if(res?.error){
+        alert(res.error);
+        return;
+      }
 
-        if(!newName || newUnits <= 0){
-          alert("Dati non validi");
-          return;
-        }
+      card.classList.remove('editing');
+      card.classList.add('saved');
 
-        const res = await fetchJSON('api_update_product.php',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({
-            id:p.id,
-            name:newName,
-            format:newFormat,
-            units:newUnits
-          })
-        });
+      setTimeout(()=>{ card.classList.remove('saved'); },600);
 
-        if(res?.error){
-          alert(res.error);
-          return;
-        }
+      await loadProducts();
+      await loadProductsTable();
+      applyGlobalSearch();
+    });
 
-        card.classList.remove('editing');
-        card.classList.add('saved');
+    deleteBtn.addEventListener('click', async () => {
 
-        setTimeout(()=>{ card.classList.remove('saved'); },600);
+      const isArchived = Number(p.is_active ?? 1) === 0;
 
-        await loadProducts();
-        await loadProductsTable();
+      const question = isArchived
+        ? "Eliminare DEFINITIVAMENTE il prodotto?\n(se ha movimenti/lotti verrà solo mantenuto archiviato)"
+        : "Archiviare il prodotto?";
+
+      if (!confirm(question)) return;
+
+      const res = await fetchJSON('api_delete_product.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id })
       });
 
-      deleteBtn.addEventListener('click', async () => {
+      if (res?.success === false) {
+        alert(res.error || 'Errore eliminazione');
+        return;
+      }
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
 
-  const isArchived = Number(p.is_active ?? 1) === 0;
+      if (res?.mode === 'soft') {
+        alert(isArchived
+          ? '⚠ Non posso eliminare definitivamente: ha lotti/movimenti. Rimane archiviato.'
+          : '✅ Prodotto archiviato.'
+        );
+      } else if (res?.mode === 'hard') {
+        alert('✅ Prodotto eliminato definitivamente.');
+      } else {
+        alert('✅ Operazione completata.');
+      }
 
-  const question = isArchived
-    ? "Eliminare DEFINITIVAMENTE il prodotto?\n(se ha movimenti/lotti verrà solo mantenuto archiviato)"
-    : "Archiviare il prodotto?";
+      await loadProducts();
+      await loadProductsTable();
+      applyGlobalSearch();
+    });
 
-  if (!confirm(question)) return;
-
-  const res = await fetchJSON('api_delete_product.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: p.id })
+    container.appendChild(card);
   });
 
-  // se il backend ritorna success:false o error
-  if (res?.success === false) {
-    alert(res.error || 'Errore eliminazione');
-    return;
+  if(visibleRows.length === 0){
+    container.innerHTML = `<div class="muted">Nessun risultato</div>`;
   }
-  if (res?.error) {
-    alert(res.error);
-    return;
-  }
-
-  // UX chiara
-  if (res?.mode === 'soft') {
-    alert(isArchived
-      ? '⚠ Non posso eliminare definitivamente: ha lotti/movimenti. Rimane archiviato.'
-      : '✅ Prodotto archiviato.'
-    );
-  } else if (res?.mode === 'hard') {
-    alert('✅ Prodotto eliminato definitivamente.');
-  } else {
-    alert('✅ Operazione completata.');
-  }
-
-  await loadProducts();
-  await loadProductsTable();
-});
-
-      container.appendChild(card);
-    });
 }
 
 // ---------- RETTIFICHE (ADJUSTMENT) ----------
@@ -1587,6 +1626,10 @@ async function loadAdjustTab(){
     ...l,
     stock: stockByLot.get(Number(l.lot_id)) || 0
   }));
+
+  // cache per ricerca globale
+  Cache.adjustLotsWithStock = lotsWithStock;
+  Cache.adjustMovements = movements;
 
   lotSelect.innerHTML = '<option value="">Seleziona lotto…</option>';
 
@@ -1648,17 +1691,40 @@ async function loadAdjustTab(){
 
       await loadHomeDashboard();
       await loadAdjustTab();
+      applyGlobalSearch();
     });
 
     ADJUST_TAB_READY = true;
   }
 
-  const adjustments = movements
-    .filter(m=>m.type==='ADJUSTMENT')
-    .sort((a,b)=> new Date(b.created_at)-new Date(a.created_at))
-    .slice(0,30);
+  // ✅ render tabella rettifiche usando cache + highlight
+  renderAdjustmentsFromCache(tokenize(getGlobalQuery()));
+}
 
+function renderAdjustmentsFromCache(tokens){
+  const tb = document.getElementById('adjust_table_body');
+  if(!tb) return;
+
+  const movements = Cache.adjustMovements || [];
+  const lotsWithStock = Cache.adjustLotsWithStock || [];
   const lotMap = new Map(lotsWithStock.map(l=>[Number(l.lot_id),l]));
+
+  const adjustmentsAll = movements
+    .filter(m=>m.type==='ADJUSTMENT')
+    .sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
+
+  let adjustments = adjustmentsAll;
+
+  if(tokens.length){
+    adjustments = adjustmentsAll.filter(m=>{
+      const lot = lotMap.get(Number(m.lot_id));
+      const exp = lot?.expiration_date ? lot.expiration_date : '';
+      const hay = `${m.created_at} ${m.quantity} ${m.reason||''} ${m.note||''} ${lot?.product_name||''} ${lot?.lot_number||''} ${exp} ${lot?.ean||''} ${lot?.format||''}`;
+      return matchesTokens(hay, tokens);
+    });
+  }
+
+  adjustments = adjustments.slice(0,30);
 
   tb.innerHTML = adjustments.map(m=>{
     const lot = lotMap.get(Number(m.lot_id));
@@ -1671,26 +1737,148 @@ async function loadAdjustTab(){
 
     return `
       <tr>
-        <td>${formatDateIT(m.created_at)}</td>
-        <td>${lot?.product_name || '—'}</td>
-        <td><strong>${lot?.lot_number || '—'}</strong></td>
-        <td>${exp}</td>
-        <td style="font-weight:900;">${qDisp}</td>
-        <td>${m.reason || '—'}</td>
+        <td>${highlightTextRaw(formatDateIT(m.created_at), tokens)}</td>
+        <td>${highlightTextRaw(lot?.product_name || '—', tokens)}</td>
+        <td><strong>${highlightTextRaw(lot?.lot_number || '—', tokens)}</strong></td>
+        <td>${highlightTextRaw(exp, tokens)}</td>
+        <td style="font-weight:900;">${highlightTextRaw(qDisp, tokens)}</td>
+        <td>${highlightTextRaw(m.reason || '—', tokens)}</td>
       </tr>
     `;
-  }).join('') || `<tr><td colspan="6" class="muted">Nessuna rettifica</td></tr>`;
+  }).join('') || `<tr><td colspan="6" class="muted">Nessun risultato</td></tr>`;
+}
+
+// ==========================
+// STOCK + LOTTI (già in cache Home)
+// ==========================
+function renderStockTableFromCache(tokens){
+  const stockBody = document.querySelector('#stock_table tbody');
+  if(!stockBody) return;
+
+  const lotsWithStock = Cache.homeLotsWithStock || [];
+
+  const stockByProduct = new Map();
+  const infoByProduct = new Map();
+
+  for(const l of lotsWithStock){
+    const pid = Number(l.product_id);
+    stockByProduct.set(pid, (stockByProduct.get(pid) || 0) + (Number(l.stock)||0));
+
+    if(!infoByProduct.has(pid)){
+      infoByProduct.set(pid, {
+        fish_type: l.fish_type || '',
+        name: l.product_name || '',
+        format: l.format || '',
+        ean: l.ean || ''
+      });
+    }
+  }
+
+  let rows = [...infoByProduct.entries()].map(([pid, info]) => ({
+    ...info,
+    stock: stockByProduct.get(pid) || 0
+  }));
+
+  if(tokens.length){
+    rows = rows.filter(r => matchesTokens(
+      `${r.fish_type} ${r.name} ${r.format} ${r.ean} ${r.stock}`,
+      tokens
+    ));
+  }
+
+  stockBody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${highlightTextRaw(r.fish_type, tokens)}</td>
+      <td>${highlightTextRaw(r.name, tokens)}</td>
+      <td>${highlightTextRaw(r.format, tokens)}</td>
+      <td>${highlightTextRaw(r.ean, tokens)}</td>
+      <td>${highlightTextRaw(String(r.stock), tokens)}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="5" class="muted">Nessun risultato</td></tr>`;
+}
+
+function renderLotsTableFromCache(tokens){
+  const lotsBody = document.querySelector('#lots_table tbody');
+  if(!lotsBody) return;
+
+  const lotsWithStock = Cache.homeLotsWithStock || [];
+  const today = new Date();
+
+  let rows = [...lotsWithStock].sort((a,b)=> new Date(a.expiration_date) - new Date(b.expiration_date));
+
+  if(tokens.length){
+    rows = rows.filter(l => matchesTokens(
+      `${l.fish_type} ${l.product_name} ${l.format} ${l.ean} ${l.lot_number} ${l.stock} ${l.production_date} ${l.expiration_date}`,
+      tokens
+    ));
+  }
+
+  lotsBody.innerHTML = '';
+
+  if(rows.length === 0){
+    lotsBody.innerHTML = `<tr><td colspan="8" class="muted">Nessun risultato</td></tr>`;
+    return;
+  }
+
+  rows.forEach(l=>{
+    const diffDays = Math.ceil((new Date(l.expiration_date) - today)/(1000*60*60*24));
+
+    let bg = '';
+    if(diffDays<=30) bg='#e84118';
+    else if(diffDays<=90) bg='#fbc531';
+    else bg='#44bd32';
+
+    const tr = document.createElement('tr');
+    tr.style.backgroundColor = bg;
+    tr.style.color = 'white';
+
+    tr.innerHTML = `
+      <td>${highlightTextRaw(l.fish_type || '', tokens)}</td>
+      <td>${highlightTextRaw(l.product_name || '', tokens)}</td>
+      <td>${highlightTextRaw(l.format || '', tokens)}</td>
+      <td>${highlightTextRaw(l.ean || '', tokens)}</td>
+      <td>${highlightTextRaw(l.lot_number || '', tokens)}</td>
+      <td>${highlightTextRaw(String(Number(l.stock)||0), tokens)}</td>
+      <td>${highlightTextRaw(formatDateIT(l.production_date), tokens)}</td>
+      <td>${highlightTextRaw(formatDateIT(l.expiration_date), tokens)}</td>
+    `;
+    lotsBody.appendChild(tr);
+  });
 }
 
 // ---------- INIT ----------
 window.addEventListener('DOMContentLoaded', async ()=>{
 
+  // input ricerca globale (UNICO)
+  const gs = document.getElementById('global_search');
+  if(gs){
+    let t = null;
+    gs.addEventListener('input', ()=>{
+      clearTimeout(t);
+      t = setTimeout(applyGlobalSearch, 120);
+    });
+  }
+
+  const clearBtn = document.getElementById('global_search_clear');
+    if(clearBtn){
+      clearBtn.addEventListener('click', ()=>{
+        const gs = document.getElementById('global_search');
+        if(gs){
+          gs.value = '';
+          applyGlobalSearch();
+          gs.focus();
+        }
+      });
+    }
+
+  // toggle prodotti archiviati (UNICO)
   document
-  .getElementById('toggle_archived_products')
-  ?.addEventListener('change', (e)=>{
-    SHOW_ARCHIVED_PRODUCTS = e.target.checked;
-    loadProductsTable();
-  });
+    .getElementById('toggle_archived_products')
+    ?.addEventListener('change', (e)=>{
+      SHOW_ARCHIVED_PRODUCTS = !!e.target.checked;
+      // ricarico tab prodotti e poi riapplico filtro
+      loadProductsTable().then(applyGlobalSearch);
+    });
 
   document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1708,9 +1896,9 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       target.classList.add('active');
 
       // lazy-load tab content
-        if(targetId === 'tab_adjust'){
-          setTimeout(loadAdjustTab, 0);
-        }
+      if(targetId === 'tab_adjust'){
+        setTimeout(loadAdjustTab, 0);
+      }
     });
   });
 
@@ -1720,11 +1908,16 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   SaleUI.init();
 
   await loadHomeDashboard();
-SHOW_ARCHIVED_PRODUCTS =
-  document.getElementById('toggle_archived_products')?.checked === true;
 
-await loadProductsTable();
+  SHOW_ARCHIVED_PRODUCTS =
+    document.getElementById('toggle_archived_products')?.checked === true;
+
+  await loadProductsTable();
   await refreshTodayBatches();
+  updateGlobalSearchHint();
+
+  // applica ricerca (se già c'è testo dentro)
+  applyGlobalSearch();
 
   // ---------- CREA PRODOTTO ----------
   document.getElementById('btn_add_product')?.addEventListener('click', async ()=>{
@@ -1790,6 +1983,7 @@ await loadProductsTable();
 
       await loadProducts();
       await loadProductsTable();
+      applyGlobalSearch();
 
     }catch(err){
       console.error(err);
