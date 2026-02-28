@@ -390,9 +390,12 @@ function extractWeight(format){
   return match ? parseInt(match[1],10) : 0;
 }
 
-async function loadProducts(){
+async function loadProducts() {
 
   PRODUCTS = await fetchJSON('api_products.php');
+
+  // ✅ NASCONDI ARCHIVIATI (paracadute)
+  PRODUCTS = (PRODUCTS || []).filter(p => Number(p.is_active ?? 1) === 1);
 
   const nameSelect = document.getElementById('product_name_select');
   const formatSelect = document.getElementById('prod_select');
@@ -413,6 +416,7 @@ async function loadProducts(){
     nameSelect.appendChild(opt);
   });
 
+  
   // 🔹 Quando scelgo nome
   nameSelect.addEventListener('change', ()=>{
 
@@ -832,24 +836,39 @@ async function loadProductsTable(){
 
     });
 
-    // --- DELETE ---
-    deleteBtn.addEventListener('click', async ()=>{
-      if(!confirm("Eliminare il prodotto?")) return;
+   // --- DELETE ---
+deleteBtn.addEventListener('click', async () => {
+  if (!confirm("Eliminare il prodotto?")) return;
 
-      const res = await fetchJSON('api_delete_product.php',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({id:p.id})
-      });
+  const res = await fetchJSON('api_delete_product.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: p.id })
+  });
 
-      if(res.error){
-        alert(res.error);
-        return;
-      }
+  // Gestione errori (robusta)
+  if (res?.success === false) {
+    alert(res.error || 'Errore eliminazione');
+    return;
+  }
+  if (res?.error) { // fallback se qualche endpoint usa ancora error senza success
+    alert(res.error);
+    return;
+  }
 
-      await loadProducts();
-      await loadProductsTable();
-    });
+  // Messaggio chiaro
+  if (res?.mode === 'soft') {
+    alert('Prodotto archiviato! (aveva lotti/movimenti).');
+  } else if (res?.mode === 'hard') {
+    alert('Prodotto eliminato.');
+  } else {
+    alert('Operazione completata.');
+  }
+
+  // Refresh UI
+  await loadProducts();
+  await loadProductsTable();
+});
 
     container.appendChild(card);
   });

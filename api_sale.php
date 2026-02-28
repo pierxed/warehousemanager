@@ -1,116 +1,113 @@
 <?php
 declare(strict_types=1);
 
-header('Content-Type: application/json; charset=utf-8');
-ini_set('display_errors', '0');
-error_reporting(0);
-
-function out(array $payload): void {
-  echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-  exit;
-}
+require_once __DIR__ . '/api_bootstrap.php';
 
 try {
-  include 'db.php'; // deve SOLO creare $pdo, niente echo
+  require_method('POST');
+  $data = read_json_body();
 
-  $raw = file_get_contents("php://input");
-  $data = json_decode($raw, true);
-
-  if (!is_array($data)) out(['error' => 'JSON non valido']);
-
-  $product_id = (int)($data['product_id'] ?? 0);
-  $qtyToSell  = (int)($data['quantity'] ?? 0);
-
-  if ($product_id <= 0 || $qtyToSell <= 0) out(['error' => 'Dati mancanti']);
-
-  // Prendo lotti del prodotto ordinati (FIFO: prima scadenza, poi produzione)
-  $stmt = $pdo->prepare("
-    SELECT id, expiration_date, production_date
-    FROM lots
-    WHERE product_id = ?
-    ORDER BY expiration_date ASC, production_date ASC, id ASC
-  ");
-  $stmt->execute([$product_id]);
-  $lots = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-  if (!$lots) out(['error' => 'Nessun lotto per questo prodotto']);
-
-  // calcolo stock per lotto (production - sale)
-  $lotStock = [];
-  $stmt2 = $pdo->prepare("
-    SELECT 
-      COALESCE(SUM(CASE WHEN type='PRODUCTION' THEN quantity END),0) AS prod,
-      COALESCE(SUM(CASE WHEN type='SALE' THEN quantity END),0) AS sale
-    FROM movements
-    WHERE lot_id = ?
-  ");
-
-  foreach ($lots as $l) {
-    $lotId = (int)$l['id'];
-    $stmt2->execute([$lotId]);
-    $r = $stmt2->fetch(PDO::FETCH_ASSOC) ?: ['prod'=>0,'sale'=>0];
-    $stock = (int)$r['prod'] - (int)$r['sale'];
-    $lotStock[] = ['lot_id' => $lotId, 'stock' => $stock];
+  $product_id = int_in($data['product_id'] ?? 0);
+  $qtyToSell  = int_in($data['quantity'] ?? 0);
+  if ($product_id <= 0 || $qtyToSell <= 0) {
+    json_out(['success' => false, 'error' => 'Dati mancanti'], 400);
   }
 
-  // stock totale prodotto
-  $totalAvailable = 0;
-  foreach ($lotStock as $x) $totalAvailable += max(0, (int)$x['stock']);
-
-  if ($totalAvailable < $qtyToSell) {
-    out(['error' => "Stock insufficiente. Disponibile: $totalAvailable"]);
-  }
-
-  // vendi FIFO distribuendo sui lotti (transazione)
+  // --- FIFO corretto (FEFO): prima scadenza batch, poi produzione batch, poi lot_id ---
+  // expiration_date / production_date stanno su batches, NON su lots.
+  // Facciamo lock per evitare vendite concorrenti che bucano lo stock.
   $pdo->beginTransaction();
 
-  $remaining = $qtyToSell;
+  $stmt = $pdo->prepare("\
+    SELECT
+      l.id AS lot_id,
+      b.lot_number,
+      b.expiration_date,
+      b.production_date,
+      COALESCE(SUM(CASE
+        WHEN m.type='PRODUCTION' THEN m.quantity
+        WHEN m.type='SALE' THEN -m.quantity
+        ELSE 0
+      END), 0) AS stock
+    FROM lots l
+    JOIN batches b ON b.id = l.batch_id
+    LEFT JOIN movements m ON m.lot_id = l.id
+    WHERE l.product_id = ?
+    GROUP BY l.id, b.lot_number, b.expiration_date, b.production_date
+    HAVING stock > 0
+    ORDER BY b.expiration_date ASC, b.production_date ASC, l.id ASC
+    FOR UPDATE
+  ");
+  $stmt->execute([$product_id]);
+  $fifoLots = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-  $stmtIns = $pdo->prepare("
+  $totalAvailable = 0;
+  foreach ($fifoLots as $row) $totalAvailable += (int)$row['stock'];
+
+  if ($totalAvailable < $qtyToSell) {
+    $pdo->rollBack();
+    json_out([
+      'success' => false,
+      'error' => 'Stock insufficiente',
+      'available' => $totalAvailable,
+    ], 409);
+  }
+
+  $stmtIns = $pdo->prepare("\
     INSERT INTO movements (product_id, lot_id, quantity, type)
     VALUES (?, ?, ?, 'SALE')
   ");
 
-  foreach ($lotStock as $ls) {
-    if ($remaining <= 0) break;
+  $remaining = $qtyToSell;
+  $consumed = [];
 
-    $available = max(0, (int)$ls['stock']);
+  foreach ($fifoLots as $row) {
+    if ($remaining <= 0) break;
+    $lotId = (int)$row['lot_id'];
+    $available = (int)$row['stock'];
     if ($available <= 0) continue;
 
     $take = min($available, $remaining);
-
-    $stmtIns->execute([$product_id, (int)$ls['lot_id'], $take]);
-
+    $stmtIns->execute([$product_id, $lotId, $take]);
+    $consumed[] = [
+      'lot_id' => $lotId,
+      'lot_number' => $row['lot_number'],
+      'taken' => $take,
+      'expiration_date' => $row['expiration_date'],
+      'production_date' => $row['production_date'],
+    ];
     $remaining -= $take;
   }
 
   $pdo->commit();
 
-  // ricalcolo stock prodotto dopo vendita
-  $stmt3 = $pdo->prepare("
-    SELECT 
-      COALESCE(SUM(CASE WHEN type='PRODUCTION' THEN quantity END),0) AS prod,
-      COALESCE(SUM(CASE WHEN type='SALE' THEN quantity END),0) AS sale
+  // stock prodotto dopo vendita
+  $stmt2 = $pdo->prepare("\
+    SELECT COALESCE(SUM(CASE
+      WHEN type='PRODUCTION' THEN quantity
+      WHEN type='SALE' THEN -quantity
+      ELSE 0
+    END), 0) AS stock
     FROM movements
     WHERE product_id = ?
   ");
-  $stmt3->execute([$product_id]);
-  $r2 = $stmt3->fetch(PDO::FETCH_ASSOC) ?: ['prod'=>0,'sale'=>0];
-  $remainingProductStock = (int)$r2['prod'] - (int)$r2['sale'];
+  $stmt2->execute([$product_id]);
+  $remainingProductStock = (int)($stmt2->fetchColumn() ?? 0);
 
-  out([
+  json_out([
     'success' => true,
     'sold' => $qtyToSell,
-    'remaining_product_stock' => $remainingProductStock
+    'remaining_product_stock' => $remainingProductStock,
+    'fifo_consumed' => $consumed,
   ]);
 
 } catch (Throwable $e) {
-  // se la transazione è aperta, rollback
   if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
     $pdo->rollBack();
   }
-  out([
-  'error' => 'Errore server',
-  'detail' => $e->getMessage()
-]);
+  json_out([
+    'success' => false,
+    'error' => 'Errore server',
+    'detail' => $e->getMessage(),
+  ], 500);
 }

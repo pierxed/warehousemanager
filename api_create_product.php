@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-include 'db.php';
+require_once __DIR__ . '/api_bootstrap.php';
 
 $name = $_POST['name'] ?? '';
 $format = $_POST['format'] ?? '';

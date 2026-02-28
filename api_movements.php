@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
 error_reporting(0);
-include 'db.php';
+require_once __DIR__ . '/api_bootstrap.php';
 
 $stmt = $pdo->query("
   SELECT id, product_id, lot_id, quantity, type, created_at

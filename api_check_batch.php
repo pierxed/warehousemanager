@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require 'db.php';
+require_once __DIR__ . '/api_bootstrap.php';
 
 $lot_number = $_GET['lot_number'] ?? '';
 

@@ -1,41 +1,47 @@
 <?php
-header('Content-Type: application/json');
-require 'db.php';
+declare(strict_types=1);
 
-$stmt = $pdo->query("
-    SELECT 
-        p.id,
-        p.name,
-        p.format,
-        p.fish_type,
-        p.ean,
-        p.units_per_tray,
-        p.image_path
-    FROM products p
-");
+require_once __DIR__ . '/api_bootstrap.php';
 
-$products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    require_method('GET');
 
-foreach($products as &$product){
-
-    $stmtStock = $pdo->prepare("
-        SELECT 
-            SUM(
-                CASE 
-                    WHEN m.type='PRODUCTION' THEN m.quantity
-                    WHEN m.type='SALE' THEN -m.quantity
+    $stmt = $pdo->query("
+        SELECT
+            p.id,
+            p.name,
+            p.format,
+            p.fish_type,
+            p.ean,
+            p.units_per_tray,
+            p.image_path,
+            COALESCE(SUM(
+                CASE
+                    WHEN m.type = 'PRODUCTION' THEN m.quantity
+                    WHEN m.type = 'SALE' THEN -m.quantity
                     ELSE 0
                 END
-            ) as stock
-        FROM movements m
-        JOIN lots l ON m.lot_id = l.id
-        WHERE l.product_id = ?
+            ), 0) AS stock
+        FROM products p
+        LEFT JOIN lots l ON l.product_id = p.id
+        LEFT JOIN movements m ON m.lot_id = l.id
+        WHERE p.is_active = 1
+        GROUP BY
+            p.id, p.name, p.format, p.fish_type, p.ean, p.units_per_tray, p.image_path
+        ORDER BY p.name
     ");
 
-    $stmtStock->execute([$product['id']]);
-    $row = $stmtStock->fetch(PDO::FETCH_ASSOC);
+    $products = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $product['stock'] = (int)($row['stock'] ?? 0);
+    // cast coerenti
+    foreach ($products as &$p) {
+        $p['id'] = (int)$p['id'];
+        $p['units_per_tray'] = (int)$p['units_per_tray'];
+        $p['stock'] = (int)$p['stock'];
+    }
+
+    json_response($products);
+
+} catch (Throwable $e) {
+    json_response(['success'=>false,'error'=>'Errore server','detail'=>$e->getMessage()], 500);
 }
-
-echo json_encode($products);
