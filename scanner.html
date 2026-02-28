@@ -1,0 +1,10 @@
+<input type="text" id="barcode" autofocus placeholder="Scansiona vasetto">
+<script>
+document.getElementById("barcode").addEventListener("change", async (e)=>{
+    const code = e.target.value;
+    const res = await fetch('/warehouse/api_get_product.php?ean='+code);
+    const product = await res.json();
+    console.log(product);
+    e.target.value = "";
+});
+</script>

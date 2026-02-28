@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestionale Magazzino</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>Gestionale Magazzino</h1>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-target="tab_home">Home</button>
+  <button class="tab-btn" data-target="tab_products">Prodotti</button>
+  <button class="tab-btn" data-target="tab_production">Produzione</button>
+  <button class="tab-btn" data-target="tab_sale">Vendita</button>
+  <button class="tab-btn" data-target="tab_stock">Stock</button>
+  <button class="tab-btn" data-target="tab_lots">Lotti</button>
+</nav>
+<div id="expiry_toasts"></div>
+<div class="container">
+
+  <!-- HOME -->
+  <section id="tab_home" class="tab active">
+    
+
+    <div class="dashboard-cards">
+      <div class="card">
+        <h3>Stock totale (barattoli)</h3>
+        <p id="card_total_stock">0</p>
+      </div>
+
+      <div class="card">
+        <h3>Lotti in scadenza &lt; 30gg</h3>
+        <p id="card_expiring">0</p>
+      </div>
+
+      <div class="card">
+        <h3>Barattoli prodotti oggi</h3>
+        <p id="card_today_production">0</p>
+      </div>
+    </div>
+
+    <section class="mini-table">
+      <h2>Lotti in scadenza entro 30 giorni</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Prodotto</th>
+            <th>Lotto</th>
+            <th>Stock</th>
+            <th>Scadenza</th>
+          </tr>
+        </thead>
+        <tbody id="mini_lots_table"></tbody>
+      </table>
+    </section>
+
+    <section class="mini-chart">
+      <h2>Stock per Lotto (Top 20)</h2>
+      <canvas id="homeChart"></canvas>
+    </section>
+  </section>
+
+  <!-- PRODOTTI -->
+    <section id="tab_products" class="tab">
+
+  <div class="product-create-card">
+
+  <h3>➕ Nuovo Prodotto</h3>
+
+  <div class="create-grid">
+    <input type="text" id="new_product_name" placeholder="Nome prodotto">
+    <input type="text" id="new_product_format" placeholder="Formato (es: 200g)">
+    <input type="text" id="new_product_fish" placeholder="Es: TONNO, SGOMBRO...">
+    <input type="text" id="new_product_ean" placeholder="EAN">
+    <input type="number" id="new_product_units" placeholder="Unità per vassoio" min="1">
+    <input type="file" id="new_product_image" accept="image/*">
+  </div>
+
+  <button id="btn_add_product" class="btn-create">Crea Prodotto</button>
+  <div id="product_message" class="message"></div>
+
+</div>
+
+    <h3 style="margin-bottom: 30px;">Prodotti esistenti</h3>
+    <div id="products_container" class="products-grid"></div>
+  </section>
+
+  <!-- PRODUZIONE -->
+  <section id="tab_production" class="tab">
+    <h2>Produzione</h2>
+
+    <div class="form-group">
+      <label>EAN Prodotto (scan):</label>
+      <input type="text" id="prod_ean" placeholder="Scansiona EAN">
+    </div>
+
+    <div class="form-group">
+      <label>Prodotto:</label>
+      <select id="product_name_select"></select>
+    </div>
+
+    <div class="form-group">
+      <label>Formato:</label>
+      <select id="prod_select"></select>
+      <small id="prod_info" style="display:block;margin-top:6px;color:#555;"></small>
+    </div>
+
+    <div class="form-group">
+      <label>Tipo quantità:</label>
+      <select id="quantity_type">
+        <option value="trays">Vassoi</option>
+        <option value="units">Barattoli</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Quantità:</label>
+      <input type="number" id="quantity_input" min="1">
+    </div>
+
+    <div class="form-group">
+      <label>Lotto:</label>
+      <input type="text" id="lot_number" list="lot_suggestions" placeholder="Es: TONNO-2026-02-28">
+      <div id="lot_warning"></div>
+      <datalist id="lot_suggestions"></datalist>
+      <div id="lot_quick" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;"></div>
+      <small style="display:block;margin-top:6px;color:#555;">
+        Tip: clicca un suggerimento qui sotto per riusare un lotto di oggi.
+      </small>
+    </div>
+
+    <div class="form-group">
+      <label>Scadenza:</label>
+      <input type="date" id="expiration_date">
+    </div>
+
+    <button id="btn_production">Registra Produzione</button>
+    <div id="prod_message" class="message"></div>
+  </section>
+
+  <!-- VENDITA -->
+  <section id="tab_sale" class="tab">
+    <h2>Vendita</h2>
+
+    <div class="form-group">
+      <label>EAN Prodotto:</label>
+      <input type="text" id="barcode" placeholder="Scansiona o inserisci EAN">
+    </div>
+
+    <div class="form-group">
+      <label>Quantità (barattoli):</label>
+      <input type="number" id="sale_qty" value="1" min="1">
+    </div>
+
+    <button id="btn_sale">Registra Vendita</button>
+    <div id="sale_message" class="message"></div>
+  </section>
+
+  <!-- STOCK -->
+  <section id="tab_stock" class="tab">
+    <h2>Stock Totale</h2>
+    <table id="stock_table">
+      <thead>
+        <tr>
+          <th>Tipo Pesce</th>
+          <th>Prodotto</th>
+          <th>Formato</th>
+          <th>EAN</th>
+          <th>Stock (barattoli)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- LOTTI -->
+  <section id="tab_lots" class="tab">
+    <h2>Lotti Dettagliati</h2>
+    <table id="lots_table">
+      <thead>
+        <tr>
+          <th>Pesce</th>
+          <th>Prodotto</th>
+          <th>Formato</th>
+          <th>EAN</th>
+          <th>Lotto</th>
+          <th>Stock</th>
+          <th>Produzione</th>
+          <th>Scadenza</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>
