@@ -19,7 +19,7 @@
       </div>
       <button class="menu-toggle" id="menu_toggle" type="button" aria-expanded="false">
         ☰ Menu
-      </button> 
+      </button>
 
       <!-- Tabs: stessi bottoni e data-target -->
       <nav class="tabs sidebar-nav">
@@ -28,6 +28,7 @@
         <button class="tab-btn" data-target="tab_production" type="button">Produzione</button>
         <button class="tab-btn" data-target="tab_sale" type="button">Vendita</button>
         <button class="tab-btn" data-target="tab_adjust" type="button">Rettifica</button>
+        <button class="tab-btn" data-target="tab_inventory">Magazzino</button>
         <button class="tab-btn" data-target="tab_stock" type="button">Stock</button>
         <button class="tab-btn" data-target="tab_lots" type="button">Lotti</button>
       </nav>
@@ -47,18 +48,18 @@
           <p class="page-subtitle">Produzione, stock e lotti — tutto in un posto</p>
         </div>
 
-       <div class="topbar-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <input class="input" id="global_search" placeholder="Cerca (EAN, lotto, prodotto)..." />
+        <div class="topbar-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <input class="input" id="global_search" placeholder="Cerca (EAN, lotto, prodotto)..." />
 
-        <div id="global_search_hint" class="muted" style="display:none; align-items:center; gap:8px;">
-        <span>Filtro attivo:</span>
-          <span id="global_search_hint_text" class="pill" style="padding:6px 10px;"></span>
-        
-          <button id="global_search_clear" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">
-            ✕ reset
-          </button>
+          <div id="global_search_hint" class="muted" style="display:none; align-items:center; gap:8px;">
+            <span>Filtro attivo:</span>
+            <span id="global_search_hint_text" class="pill" style="padding:6px 10px;"></span>
+
+            <button id="global_search_clear" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">
+              ✕ reset
+            </button>
+          </div>
         </div>
-      </div>
       </header>
 
       <!-- Toasts: non tocchiamo ID -->
@@ -67,122 +68,122 @@
       <div class="container">
 
         <!-- HOME -->
-       <section id="tab_home" class="tab active">
+        <section id="tab_home" class="tab active">
 
-  <div class="section-head">
-    <h2 class="h2">Home</h2>
-    <div class="muted">Riepilogo rapido</div>
-  </div>
-
-  <!-- KPI -->
-  <div class="dashboard-cards">
-    <div class="card kpi">
-      <h3>Stock totale (barattoli)</h3>
-      <p id="card_total_stock">0</p>
-    </div>
-
-    <div class="card kpi">
-      <h3>Lotti in scadenza &lt; 30gg</h3>
-      <p id="card_expiring">0</p>
-    </div>
-
-    <div class="card kpi">
-      <h3>Barattoli prodotti oggi</h3>
-      <p id="card_today_production">0</p>
-    </div>
-  </div>
-
-  <!-- CONTENUTI HOME -->
-  <div class="home-grid">
-
-    <!-- SCADENZE -->
-    <div class="card">
-      <div class="card-head">
-        <h3>Scadenze</h3>
-        <div class="muted">Solo stock &gt; 0</div>
-      </div>
-
-      <div class="home-split">
-        <div class="mini-block">
-          <div class="mini-title">
-            <span class="badge danger">0–7 giorni</span>
+          <div class="section-head">
+            <h2 class="h2">Home</h2>
+            <div class="muted">Riepilogo rapido</div>
           </div>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Prodotto</th>
-                  <th>Lotto</th>
-                  <th>Stock</th>
-                  <th>Scad.</th>
-                </tr>
-              </thead>
-              <tbody id="expiry_7_table"></tbody>
-            </table>
-          </div>
-        </div>
+          <!-- KPI -->
+          <div class="dashboard-cards">
+            <div class="card kpi">
+              <h3>Stock totale (barattoli)</h3>
+              <p id="card_total_stock">0</p>
+            </div>
 
-        <div class="mini-block">
-          <div class="mini-title">
-            <span class="badge warn">8–30 giorni</span>
+            <div class="card kpi">
+              <h3>Lotti in scadenza &lt; 30gg</h3>
+              <p id="card_expiring">0</p>
+            </div>
+
+            <div class="card kpi">
+              <h3>Barattoli prodotti oggi</h3>
+              <p id="card_today_production">0</p>
+            </div>
           </div>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Prodotto</th>
-                  <th>Lotto</th>
-                  <th>Stock</th>
-                  <th>Scad.</th>
-                </tr>
-              </thead>
-              <tbody id="expiry_30_table"></tbody>
-            </table>
+          <!-- CONTENUTI HOME -->
+          <div class="home-grid">
+
+            <!-- SCADENZE -->
+            <div class="card">
+              <div class="card-head">
+                <h3>Scadenze</h3>
+                <div class="muted">Solo stock &gt; 0</div>
+              </div>
+
+              <div class="home-split">
+                <div class="mini-block">
+                  <div class="mini-title">
+                    <span class="badge danger">0–7 giorni</span>
+                  </div>
+
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Prodotto</th>
+                          <th>Lotto</th>
+                          <th>Stock</th>
+                          <th>Scad.</th>
+                        </tr>
+                      </thead>
+                      <tbody id="expiry_7_table"></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="mini-block">
+                  <div class="mini-title">
+                    <span class="badge warn">8–30 giorni</span>
+                  </div>
+
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Prodotto</th>
+                          <th>Lotto</th>
+                          <th>Stock</th>
+                          <th>Scad.</th>
+                        </tr>
+                      </thead>
+                      <tbody id="expiry_30_table"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ULTIMI MOVIMENTI -->
+            <div class="card">
+              <div class="card-head">
+                <h3>Ultimi movimenti</h3>
+                <div class="muted">Ultimi 10</div>
+              </div>
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Tipo</th>
+                      <th>Prodotto</th>
+                      <th>Lotto</th>
+                      <th>Scad.</th>
+                      <th>Q.tà</th>
+                    </tr>
+                  </thead>
+                  <tbody id="last_moves_table"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- GRAFICO VENDITE TOP -->
+            <div class="card">
+              <div class="card-head">
+                <h3>Top vendite per prodotto</h3>
+                <div class="muted">Ultimi 30 giorni</div>
+              </div>
+
+              <div class="chart-wrap">
+                <canvas id="salesChart"></canvas>
+              </div>
+            </div>
+
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ULTIMI MOVIMENTI -->
-    <div class="card">
-      <div class="card-head">
-        <h3>Ultimi movimenti</h3>
-        <div class="muted">Ultimi 10</div>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Tipo</th>
-              <th>Prodotto</th>
-              <th>Lotto</th>
-              <th>Scad.</th>
-              <th>Q.tà</th>
-            </tr>
-          </thead>
-          <tbody id="last_moves_table"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- GRAFICO VENDITE TOP -->
-    <div class="card">
-      <div class="card-head">
-        <h3>Top vendite per prodotto</h3>
-        <div class="muted">Ultimi 30 giorni</div>
-      </div>
-
-      <div class="chart-wrap">
-        <canvas id="salesChart"></canvas>
-      </div>
-    </div>
-
-  </div>
-</section>
+        </section>
 
         <!-- PRODOTTI -->
         <section id="tab_products" class="tab">
@@ -242,61 +243,61 @@
                 <div class="muted">Scan → quantità → lotto → scadenza</div>
               </div>
 
-            <div class="production-layout">
+              <div class="production-layout">
 
-  <!-- SCAN CENTRALE -->
-  <div class="scan-row">
-    <label>Scansiona prodotto</label>
-    <input type="text" id="prod_ean" placeholder="Scansiona EAN prodotto..." autofocus>
-  </div>
+                <!-- SCAN CENTRALE -->
+                <div class="scan-row">
+                  <label>Scansiona prodotto</label>
+                  <input type="text" id="prod_ean" placeholder="Scansiona EAN prodotto..." autofocus>
+                </div>
 
-  <!-- riga 1 -->
-  <div class="form-grid">
-    <div class="form-group">
-      <label>Prodotto:</label>
-      <select id="product_name_select"></select>
-    </div>
+                <!-- riga 1 -->
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Prodotto:</label>
+                    <select id="product_name_select"></select>
+                  </div>
 
-    <div class="form-group">
-      <label>Formato:</label>
-      <select id="prod_select"></select>
-      <small id="prod_info" class="help"></small>
-    </div>
-  </div>
+                  <div class="form-group">
+                    <label>Formato:</label>
+                    <select id="prod_select"></select>
+                    <small id="prod_info" class="help"></small>
+                  </div>
+                </div>
 
-  <!-- riga 2 -->
-  <div class="form-grid">
-    <div class="form-group">
-      <label>Tipo quantità:</label>
-      <select id="quantity_type">
-        <option value="trays">Vassoi</option>
-        <option value="units">Barattoli</option>
-      </select>
-    </div>
+                <!-- riga 2 -->
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Tipo quantità:</label>
+                    <select id="quantity_type">
+                      <option value="trays">Vassoi</option>
+                      <option value="units">Barattoli</option>
+                    </select>
+                  </div>
 
-    <div class="form-group">
-      <label>Quantità:</label>
-      <input type="number" id="quantity_input" min="1">
-    </div>
-  </div>
+                  <div class="form-group">
+                    <label>Quantità:</label>
+                    <input type="number" id="quantity_input" min="1">
+                  </div>
+                </div>
 
-  <!-- riga 3 -->
-  <div class="form-grid">
-    <div class="form-group">
-      <label>Lotto:</label>
-      <input type="text" id="lot_number" list="lot_suggestions">
-      <div id="lot_warning"></div>
-      <datalist id="lot_suggestions"></datalist>
-      <div id="lot_quick" class="lot-quick"></div>
-    </div>
+                <!-- riga 3 -->
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Lotto:</label>
+                    <input type="text" id="lot_number" list="lot_suggestions">
+                    <div id="lot_warning"></div>
+                    <datalist id="lot_suggestions"></datalist>
+                    <div id="lot_quick" class="lot-quick"></div>
+                  </div>
 
-    <div class="form-group">
-      <label>Scadenza:</label>
-      <input type="date" id="expiration_date">
-    </div>
-  </div>
+                  <div class="form-group">
+                    <label>Scadenza:</label>
+                    <input type="date" id="expiration_date">
+                  </div>
+                </div>
 
-</div>
+              </div>
 
               <div class="row">
                 <button id="btn_production" type="button" class="btn-primary">Registra Produzione</button>
@@ -319,190 +320,171 @@
         </section>
 
         <!-- VENDITA -->
-<section id="tab_sale" class="tab">
-  <div class="section-head">
-    <h2 class="h2">Vendita</h2>
-    <div class="muted">Scarico rapido stock</div>
-  </div>
+        <section id="tab_sale" class="tab">
+          <div class="section-head">
+            <h2 class="h2">Vendita</h2>
+            <div class="muted">Scarico rapido stock</div>
+          </div>
 
-  <div class="card">
-    <div class="form-grid">
-  <div class="form-group">
-    <label>Prodotto (nome):</label>
-    <select id="sale_product_name_select">
-      <option value="">-- Seleziona prodotto --</option>
-    </select>
-  </div>
+          <div class="card">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Prodotto (nome):</label>
+                <select id="sale_product_name_select">
+                  <option value="">-- Seleziona prodotto --</option>
+                </select>
+              </div>
 
-  <div class="form-group">
-    <label>Formato:</label>
-    <select id="sale_prod_select">
-      <option value="">-- Seleziona formato --</option>
-    </select>
-  </div>
-</div>
+              <div class="form-group">
+                <label>Formato:</label>
+                <select id="sale_prod_select">
+                  <option value="">-- Seleziona formato --</option>
+                </select>
+              </div>
+            </div>
 
-<div class="form-grid" style="margin-top:10px;">
-  <div class="form-group">
-    <label>EAN Prodotto (opzionale):</label>
-    <input type="text" id="barcode" placeholder="Scansiona o inserisci EAN">
-    <div class="muted">Se inserisci EAN, selezione prodotto/formato si aggiorna.</div>
-  </div>
+            <div class="form-grid" style="margin-top:10px;">
+              <div class="form-group">
+                <label>EAN Prodotto (opzionale):</label>
+                <input type="text" id="barcode" placeholder="Scansiona o inserisci EAN">
+                <div class="muted">Se inserisci EAN, selezione prodotto/formato si aggiorna.</div>
+              </div>
 
-  <div class="form-group">
-    <label>Quantità (barattoli):</label>
-    <input type="number" id="sale_qty" value="1" min="1">
-  </div>
-</div>
+              <div class="form-group">
+                <label>Quantità (barattoli):</label>
+                <input type="number" id="sale_qty" value="1" min="1">
+              </div>
+            </div>
 
-<div class="row" style="gap:12px; align-items:center; margin-top:10px;">
-  <label style="display:flex; gap:8px; align-items:center; cursor:pointer;">
-    <input type="checkbox" id="sale_manual_toggle">
-    <span>Selezione lotto manuale</span>
-  </label>
-  <span class="muted" id="sale_plan_hint"></span>
-</div>
+            <div class="row" style="gap:12px; align-items:center; margin-top:10px;">
+              <label style="display:flex; gap:8px; align-items:center; cursor:pointer;">
+                <input type="checkbox" id="sale_manual_toggle">
+                <span>Selezione lotto manuale</span>
+              </label>
+              <span class="muted" id="sale_plan_hint"></span>
+            </div>
 
-<!-- MANUALE -->
-<div id="sale_manual_box" style="display:none; margin-top:10px;">
-  <div class="muted" style="margin-bottom:6px;">
-    Seleziona uno o più lotti. Completa la quantità richiesta.
-  </div>
+            <!-- MANUALE -->
+            <div id="sale_manual_box" style="display:none; margin-top:10px;">
+              <div class="muted" style="margin-bottom:6px;">
+                Seleziona uno o più lotti. Completa la quantità richiesta.
+              </div>
 
-  <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-    <div class="muted">Lotti disponibili:</div>
-    <div id="sale_lot_chips" class="row" style="gap:8px; flex-wrap:wrap;"></div>
-  </div>
+              <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                <div class="muted">Lotti disponibili:</div>
+                <div id="sale_lot_chips" class="row" style="gap:8px; flex-wrap:wrap;"></div>
+              </div>
 
-  <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-    <div class="muted">Selezionati:</div>
-    <div id="sale_selected_chips" class="row" style="gap:8px; flex-wrap:wrap;"></div>
-  </div>
+              <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                <div class="muted">Selezionati:</div>
+                <div id="sale_selected_chips" class="row" style="gap:8px; flex-wrap:wrap;"></div>
+              </div>
 
-  <div id="sale_manual_status" class="muted"></div>
-</div>
+              <div id="sale_manual_status" class="muted"></div>
+            </div>
 
+            <div class="row" style="margin-top:10px;">
+              <button id="btn_sale" type="button" class="btn-primary">Registra Vendita</button>
+              <div id="sale_message" class="message"></div>
+            </div>
 
-    <div class="row" style="margin-top:10px;">
-      <button id="btn_sale" type="button" class="btn-primary">Registra Vendita</button>
+            <!-- BOX conferma 2-step -->
+            <div id="sale_confirm_box" style="margin-top:12px;"></div>
+          </div>
+        </section>
 
+        <!-- RETTIFICA STOCK -->
+        <section id="tab_adjust" class="tab">
+          <div class="section-head">
+            <h2 class="h2">Rettifica Stock</h2>
+            <div class="muted">Rottura, reso, inventario, modifica forzata… (tracciato)</div>
+          </div>
 
-      <div id="sale_message" class="message"></div>
-    </div>
-      <!-- BOX conferma 2-step -->
-<div id="sale_confirm_box" style="margin-top:12px;"></div>
+          <div class="card">
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Lotto:</label>
+                <select id="adjust_lot" class="input">
+                  <option value="">Seleziona lotto…</option>
+                </select>
+                <div class="muted" style="margin-top:6px;">
+                  Stock attuale lotto:
+                  <span class="pill" id="adjust_stock_badge">0</span>
+                </div>
+              </div>
 
-<!-- BOX manuale (se già lo usi) -->
-<div id="sale_manual_box" style="display:none; margin-top:12px;">
-  <div id="sale_manual_status" class="muted"></div>
+              <div class="form-group">
+                <label>Direzione:</label>
+                <div class="row" style="gap:12px; align-items:center;">
+                  <label style="display:flex; gap:8px; align-items:center;">
+                    <input type="radio" name="adjust_dir" id="adjust_dir_in" checked>
+                    <span>Entrata (+)</span>
+                  </label>
+                  <label style="display:flex; gap:8px; align-items:center;">
+                    <input type="radio" name="adjust_dir" id="adjust_dir_out">
+                    <span>Uscita (−)</span>
+                  </label>
+                </div>
+              </div>
 
-  <div style="margin-top:10px;">
-    <div class="muted" style="margin-bottom:6px;">Lotti selezionati</div>
-    <div id="sale_selected_chips"></div>
-  </div>
+              <div class="form-group">
+                <label>Quantità (barattoli):</label>
+                <input id="adjust_qty" class="input" type="number" min="1">
+              </div>
 
-  <div style="margin-top:12px;">
-    <div class="muted" style="margin-bottom:6px;">Suggerimenti lotti</div>
-    <div id="sale_lot_chips"></div>
-  </div>
-</div>
-    
-  </div>
-</section>
+              <div class="form-group">
+                <label>Motivo:</label>
+                <select id="adjust_reason" class="input">
+                  <option value="">-- Seleziona --</option>
+                  <option value="ROTTURA">Rottura</option>
+                  <option value="RESO">Reso</option>
+                  <option value="MODIFICA_FORZATA">Modifica forzata</option>
+                  <option value="INVENTARIO">Inventario</option>
+                  <option value="ALTRO">Altro</option>
+                </select>
+              </div>
 
+              <div class="form-group">
+                <label>Nota (opzionale):</label>
+                <input id="adjust_note" class="input" type="text">
+              </div>
+            </div>
 
-<!-- RETTIFICA STOCK -->
-<section id="tab_adjust" class="tab">
-  <div class="section-head">
-    <h2 class="h2">Rettifica Stock</h2>
-    <div class="muted">Rottura, reso, inventario, modifica forzata… (tracciato)</div>
-  </div>
+            <div class="row" style="margin-top:12px;">
+              <button id="btn_adjust_commit" type="button" class="btn-primary">
+                Registra Rettifica
+              </button>
+              <div id="adjust_message" class="message"></div>
+            </div>
+          </div>
 
-  <div class="card">
-    <div class="form-grid">
-      <div class="form-group" style="grid-column: 1 / -1;">
-        <label>Lotto:</label>
-        <select id="adjust_lot" class="input">
-          <option value="">Seleziona lotto…</option>
-        </select>
-        <div class="muted" style="margin-top:6px;">
-          Stock attuale lotto:
-          <span class="pill" id="adjust_stock_badge">0</span>
-        </div>
-      </div>
+          <div class="card" style="margin-top:14px;">
+            <div class="card-head">
+              <h3>Ultime rettifiche</h3>
+              <div class="muted">Max 30</div>
+            </div>
 
-      <div class="form-group">
-        <label>Direzione:</label>
-        <div class="row" style="gap:12px; align-items:center;">
-          <label style="display:flex; gap:8px; align-items:center;">
-            <input type="radio" name="adjust_dir" id="adjust_dir_in" checked>
-            <span>Entrata (+)</span>
-          </label>
-          <label style="display:flex; gap:8px; align-items:center;">
-            <input type="radio" name="adjust_dir" id="adjust_dir_out">
-            <span>Uscita (−)</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Quantità (barattoli):</label>
-        <input id="adjust_qty" class="input" type="number" min="1">
-      </div>
-
-      <div class="form-group">
-        <label>Motivo:</label>
-        <select id="adjust_reason" class="input">
-          <option value="">-- Seleziona --</option>
-          <option value="ROTTURA">Rottura</option>
-          <option value="RESO">Reso</option>
-          <option value="MODIFICA_FORZATA">Modifica forzata</option>
-          <option value="INVENTARIO">Inventario</option>
-          <option value="ALTRO">Altro</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>Nota (opzionale):</label>
-        <input id="adjust_note" class="input" type="text">
-      </div>
-    </div>
-
-    <div class="row" style="margin-top:12px;">
-      <button id="btn_adjust_commit" type="button" class="btn-primary">
-        Registra Rettifica
-      </button>
-      <div id="adjust_message" class="message"></div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:14px;">
-    <div class="card-head">
-      <h3>Ultime rettifiche</h3>
-      <div class="muted">Max 30</div>
-    </div>
-
-    <div class="table-wrap">
-      <table id="adjust_table">
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Prodotto</th>
-            <th>Lotto</th>
-            <th>Scadenza</th>
-            <th>Qty</th>
-            <th>Motivo</th>
-          </tr>
-        </thead>
-        <tbody id="adjust_table_body">
-          <tr>
-            <td colspan="6" class="muted">Caricamento...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
+            <div class="table-wrap">
+              <table id="adjust_table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Prodotto</th>
+                    <th>Lotto</th>
+                    <th>Scadenza</th>
+                    <th>Qty</th>
+                    <th>Motivo</th>
+                  </tr>
+                </thead>
+                <tbody id="adjust_table_body">
+                  <tr>
+                    <td colspan="6" class="muted">Caricamento...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
 
         <!-- STOCK -->
         <section id="tab_stock" class="tab">
@@ -557,41 +539,134 @@
           </div>
         </section>
 
+        <!-- MAGAZZINO -->
+        <section id="tab_inventory" class="tab">
+          <h2>Magazzino</h2>
+          <p class="muted">Vista operativa: stock, lotti, scadenze e “cose da fare”.</p>
+
+          <div class="inv-kpis">
+            <div class="card"><div class="label">Stock totale</div><div id="inv_kpi_total_stock" class="value">—</div></div>
+            <div class="card"><div class="label">Lotti in scadenza ≤ 7gg</div><div id="inv_kpi_exp7" class="value">—</div></div>
+            <div class="card"><div class="label">Lotti in scadenza ≤ 30gg</div><div id="inv_kpi_exp30" class="value">—</div></div>
+          </div>
+
+          <div class="inv-controls">
+            <label>Scadenze:</label>
+            <select id="inv_days_filter">
+              <option value="0">Tutte</option>
+              <option value="7">≤ 7 giorni</option>
+              <option value="14">≤ 14 giorni</option>
+              <option value="30">≤ 30 giorni</option>
+            </select>
+
+            <div class="inv-toggle">
+              <button id="inv_view_products" class="chip active" type="button">Per prodotto</button>
+              <button id="inv_view_lots" class="chip" type="button">Per lotti</button>
+            </div>
+          </div>
+
+          <div class="inv-grid">
+            <div class="card">
+              <h3>📌 Cose da fare</h3>
+              <div id="inv_todo" class="muted">Caricamento...</div>
+            </div>
+
+            <div class="card">
+              <h3>⏳ Finirà presto</h3>
+              <div id="inv_runout" class="muted">Caricamento...</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 id="inv_table_title">Vista per prodotto</h3>
+            <div class="table-wrap">
+              <table id="inv_table" class="table">
+                <thead id="inv_thead"></thead>
+                <tbody id="inv_tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- MOVIMENTI (tutti) - stessa UI della Home + paginazione 10 -->
+          <div class="card">
+            <div class="card-head" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+              <div>
+                <h3>🧾 Movimenti</h3>
+                <div class="muted">Tutti i movimenti • 10 per pagina</div>
+              </div>
+
+              <div class="row" style="gap:8px; align-items:center;">
+                <span class="muted" id="inv_moves_count">0</span>
+                <button id="inv_moves_prev" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">←</button>
+                <span id="inv_moves_page" class="pill" style="padding:6px 10px;">1/1</span>
+                <button id="inv_moves_next" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">→</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Tipo</th>
+                    <th>Prodotto</th>
+                    <th>Lotto</th>
+                    <th>Scad.</th>
+                    <th>Q.tà</th>
+                  </tr>
+                </thead>
+                <tbody id="inv_all_moves_table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
       </div>
     </main>
   </div>
 
   <script src="dashboard.js"></script>
   <script>
-  window.addEventListener("DOMContentLoaded", () => {
-    const sidebar = document.querySelector(".sidebar");
-    const btn = document.getElementById("menu_toggle");
-    if(!sidebar || !btn) return;
+    window.addEventListener("DOMContentLoaded", () => {
+      const sidebar = document.querySelector(".sidebar");
+      const btn = document.getElementById("menu_toggle");
+      if(!sidebar || !btn) return;
 
-    const setIcon = () => {
-      const open = sidebar.classList.contains("menu-open");
-      btn.textContent = open ? "✕ Chiudi" : "☰ Menu";
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
-    };
+      const setIcon = () => {
+        const open = sidebar.classList.contains("menu-open");
+        btn.textContent = open ? "✕ Chiudi" : "☰ Menu";
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      };
 
-    btn.addEventListener("click", () => {
-      sidebar.classList.toggle("menu-open");
+      btn.addEventListener("click", () => {
+        sidebar.classList.toggle("menu-open");
+        setIcon();
+      });
+
+      // chiudi menu quando clicchi una tab (solo mobile)
+      document.querySelectorAll(".tab-btn").forEach(b => {
+        b.addEventListener("click", () => {
+          if (window.matchMedia("(max-width: 680px)").matches) {
+            sidebar.classList.remove("menu-open");
+            setIcon();
+          }
+        });
+      });
+
+      // set iniziale
       setIcon();
     });
+  </script>
 
-    // chiudi menu quando clicchi una tab (solo mobile)
-    document.querySelectorAll(".tab-btn").forEach(b => {
-      b.addEventListener("click", () => {
-        if (window.matchMedia("(max-width: 680px)").matches) {
-          sidebar.classList.remove("menu-open");
-          setIcon();
-        }
-      });
-    });
-
-    // set iniziale
-    setIcon();
-  });
-</script>
+  <div id="qa_modal" class="qa-modal hidden">
+    <div class="qa-card">
+      <div class="qa-head">
+        <div id="qa_title" class="qa-title">Azione rapida</div>
+        <button id="qa_close" class="qa-x" type="button">✕</button>
+      </div>
+      <div id="qa_body"></div>
+      <div id="qa_msg" class="muted" style="margin-top:10px;"></div>
+    </div>
+  </div>
 </body>
 </html>

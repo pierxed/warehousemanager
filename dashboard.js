@@ -32,7 +32,11 @@ const Cache = {
   homeMovements: null,      // movimenti raw (per ultimi movimenti)
   adjustLotsWithStock: null,
   adjustMovements: null,
-  productsRows: null        // api_products_with_stock.php (array rows)
+  productsRows: null,       // api_products_with_stock.php (array rows)
+
+  // Magazzino (tab_inventory)
+  inventoryData: null,      // risposta api_inventory.php
+  inventoryInsights: null   // risposta api_inventory_insights.php
 };
 
 function getGlobalQuery(){
@@ -85,6 +89,11 @@ function updateGlobalSearchHint(){
   }
 }
 
+function isTabActive(tabId){
+  const t = document.getElementById(tabId);
+  return !!t && t.classList.contains('active');
+}
+
 // chiamata unica per riapplicare filtro a tutte le viste
 function applyGlobalSearch(){
   const tokens = tokenize(getGlobalQuery());
@@ -102,6 +111,11 @@ function applyGlobalSearch(){
   if(Cache.homeLotsWithStock) {
     renderStockTableFromCache(tokens);
     renderLotsTableFromCache(tokens);
+  }
+
+  // Magazzino (usa cache)
+  if(Cache.inventoryData && Cache.inventoryInsights){
+    renderInventoryFromCache(tokens);
   }
 
   updateGlobalSearchHint();
@@ -797,6 +811,10 @@ document.getElementById('btn_production')?.addEventListener('click', async ()=>{
 
     await loadHomeDashboard();
     await loadProductsTable();
+    Cache.inventoryData = null;
+    Cache.inventoryInsights = null;
+    if(isTabActive('tab_inventory')) await loadInventoryTab();
+    applyGlobalSearch();
 
   }catch(err){
     console.error(err);
@@ -1166,6 +1184,10 @@ const SaleUI = (() => {
 
         await loadHomeDashboard();
         await loadProductsTable();
+        Cache.inventoryData = null;
+        Cache.inventoryInsights = null;
+        if(isTabActive('tab_inventory')) await loadInventoryTab();
+        applyGlobalSearch();
       },
       onCancel: () => setMsg('muted', 'Operazione annullata.')
     });
@@ -1228,6 +1250,10 @@ const SaleUI = (() => {
 
         await loadHomeDashboard();
         await loadProductsTable();
+        Cache.inventoryData = null;
+        Cache.inventoryInsights = null;
+        if(isTabActive('tab_inventory')) await loadInventoryTab();
+        applyGlobalSearch();
       },
       onCancel: () => setMsg('muted', 'Operazione annullata.')
     });
@@ -1691,6 +1717,9 @@ async function loadAdjustTab(){
 
       await loadHomeDashboard();
       await loadAdjustTab();
+      Cache.inventoryData = null;
+      Cache.inventoryInsights = null;
+      if(isTabActive('tab_inventory')) await loadInventoryTab();
       applyGlobalSearch();
     });
 
@@ -1899,6 +1928,8 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       if(targetId === 'tab_adjust'){
         setTimeout(loadAdjustTab, 0);
       }
+
+      if(targetId === 'tab_inventory'){ setTimeout(loadInventoryTab, 0); }
     });
   });
 
@@ -2058,4 +2089,745 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 
     });
   }
+
+  // init quick-actions modal handlers (safe even if modal HTML not present)
+  initQuickActionsModal();
 });
+
+// ==========================
+// INVENTORY (MAGAZZINO)
+// ==========================
+let INVENTORY_READY = false;
+let INVENTORY_VIEW = 'products'; // 'products' | 'lots'
+
+// Movimenti (tab_inventory) - paginazione
+let INVENTORY_MOVES_PAGE = 1;
+const INVENTORY_MOVES_PER_PAGE = 10;
+let INVENTORY_MOVES_READY = false;
+
+async function loadInventoryTab(){
+  try{
+    const days = Number(document.getElementById('inv_days_filter')?.value || 0);
+
+    // usa cache se già presente (così ricerca globale non rifà API)
+    let inv = Cache.inventoryData;
+    let ins = Cache.inventoryInsights;
+
+    if(!inv || !ins){
+      const res = await Promise.all([
+        fetchJSON('api_inventory.php?days=' + encodeURIComponent(days)),
+        fetchJSON('api_inventory_insights.php')
+      ]);
+      inv = res[0];
+      ins = res[1];
+      Cache.inventoryData = inv;
+      Cache.inventoryInsights = ins;
+    }
+
+    if(inv?.success === false) throw new Error(inv.error || 'Errore api_inventory');
+    if(ins?.success === false) throw new Error(ins.error || 'Errore api_inventory_insights');
+
+    renderInventoryFromCache(tokenize(getGlobalQuery()));
+
+    // init listeners una volta sola
+    if(!INVENTORY_READY){
+      const daysSel = document.getElementById('inv_days_filter');
+      if(daysSel){
+        daysSel.addEventListener('change', async ()=>{
+          // reset cache perché cambia dataset
+          Cache.inventoryData = null;
+          Cache.inventoryInsights = null;
+          INVENTORY_MOVES_PAGE = 1;
+          await loadInventoryTab();
+          applyGlobalSearch();
+        });
+      }
+
+      document.getElementById('inv_view_products')?.addEventListener('click', ()=>{
+        INVENTORY_VIEW = 'products';
+        document.getElementById('inv_view_products')?.classList.add('active');
+        document.getElementById('inv_view_lots')?.classList.remove('active');
+        renderInventoryFromCache(tokenize(getGlobalQuery()));
+      });
+
+      document.getElementById('inv_view_lots')?.addEventListener('click', ()=>{
+        INVENTORY_VIEW = 'lots';
+        document.getElementById('inv_view_lots')?.classList.add('active');
+        document.getElementById('inv_view_products')?.classList.remove('active');
+        renderInventoryFromCache(tokenize(getGlobalQuery()));
+      });
+
+      // event delegation per bottoni azioni (evita duplicazioni)
+      document.getElementById('inv_tbody')?.addEventListener('click', (e)=>{
+        const btn = e.target?.closest?.('button[data-qa]');
+        if(!btn) return;
+        handleQuickAction(btn.dataset);
+      });
+
+      
+// movimenti paginati (prev/next) - init una volta
+if(!INVENTORY_MOVES_READY){
+  const prevBtn = document.getElementById('inv_moves_prev');
+  const nextBtn = document.getElementById('inv_moves_next');
+
+  prevBtn?.addEventListener('click', ()=>{
+    INVENTORY_MOVES_PAGE = Math.max(1, INVENTORY_MOVES_PAGE - 1);
+    renderInventoryAllMovesFromCache(tokenize(getGlobalQuery()));
+  });
+  nextBtn?.addEventListener('click', ()=>{
+    INVENTORY_MOVES_PAGE = INVENTORY_MOVES_PAGE + 1; // clamp in render
+    renderInventoryAllMovesFromCache(tokenize(getGlobalQuery()));
+  });
+
+  INVENTORY_MOVES_READY = true;
+}
+
+INVENTORY_READY = true;
+    }
+  } catch(e){
+    console.error(e);
+    const el = document.getElementById('inv_todo');
+    if(el) el.innerHTML = `<span class="muted">Errore caricamento Magazzino (vedi console).</span>`;
+  }
+}
+
+function renderInventoryFromCache(tokens){
+  const inv = Cache.inventoryData;
+  const ins = Cache.inventoryInsights;
+  if(!inv || !ins) return;
+
+  // KPI filtrati dalla ricerca globale (per coerenza col resto)
+  const lotsFilteredForKpi = (inv.lots_view || []).filter(r =>
+    !tokens.length || matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.lot_number}`, tokens)
+  );
+
+  const totalStock = lotsFilteredForKpi.reduce((s,r)=> s + Math.max(0, Number(r.stock)||0), 0);
+  const kTotal = document.getElementById('inv_kpi_total_stock');
+  if(kTotal) kTotal.innerText = totalStock;
+
+  const exp7All = (ins.expiring_7d || []);
+  const exp30All = (ins.expiring_30d || []);
+
+  const exp7 = exp7All.filter(x =>
+    !tokens.length || matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean} ${x.lot_number}`, tokens)
+  );
+  const exp30 = exp30All.filter(x =>
+    !tokens.length || matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean} ${x.lot_number}`, tokens)
+  );
+
+  const k7 = document.getElementById('inv_kpi_exp7');
+  const k30 = document.getElementById('inv_kpi_exp30');
+  if(k7) k7.innerText = exp7.length;
+  if(k30) k30.innerText = exp30.length;
+
+  // TODO “cose da fare” = top 6 scadenze 7gg (filtrate)
+  const todoEl = document.getElementById('inv_todo');
+  if(todoEl){
+    const exp7Top = exp7.slice(0,6);
+    todoEl.innerHTML = exp7Top.length
+      ? exp7Top.map(x => `⚠️ <b>${highlightTextRaw(x.product_name, tokens)}</b> • Lotto <b>${highlightTextRaw(x.lot_number, tokens)}</b> • Stock <b>${x.stock}</b> • Scade <b>${highlightTextRaw(formatDateIT(x.expiration_date), tokens)}</b>`).join('<br>')
+      : `<span class="muted">Niente di urgente (≤7gg) 🎉</span>`;
+  }
+
+  // Runout forecast (filtrato)
+  const runoutEl = document.getElementById('inv_runout');
+  if(runoutEl){
+    const run = (ins.runout_forecast || []).filter(x =>
+      !tokens.length || matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean}`, tokens)
+    ).slice(0,6);
+    runoutEl.innerHTML = run.length
+      ? run.map(x => `⏳ <b>${highlightTextRaw(x.product_name, tokens)}</b> • ${highlightTextRaw(x.format||'', tokens)} • ~<b>${x.days_left} giorni</b> • stock ${x.stock_total}`).join('<br>')
+      : `<span class="muted">Nessuna previsione (poche vendite recenti).</span>`;
+  }
+
+  // Tabella principale
+  if(INVENTORY_VIEW === 'lots') renderInventoryLots(inv.lots_view || [], tokens);
+  else renderInventoryProducts(inv.products_agg || [], tokens);
+
+  // Movimenti (tutti) con paginazione - usa cache Home
+  renderInventoryAllMovesFromCache(tokens);
+}
+
+function renderInventoryProducts(rows, tokens){
+  const title = document.getElementById('inv_table_title');
+  if(title) title.innerText = 'Vista per prodotto';
+
+  const thead = document.getElementById('inv_thead');
+  const tbody = document.getElementById('inv_tbody');
+  if(!thead || !tbody) return;
+
+  thead.innerHTML = `
+    <tr>
+      <th>Pesce</th><th>Prodotto</th><th>Formato</th><th>EAN</th>
+      <th>Stock</th><th>#Lotti</th><th>FEFO</th><th>Scad.</th><th>Azioni</th>
+    </tr>
+  `;
+
+  const filtered = (rows||[]).filter(r => {
+    if(!tokens.length) return true;
+    return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.stock_total} ${r.fefo_lot_number||''} ${r.fefo_expiration_date||''}`, tokens);
+  });
+
+  tbody.innerHTML = filtered.map(r => `
+    <tr>
+      <td>${highlightTextRaw(r.fish_type||'', tokens)}</td>
+      <td>${highlightTextRaw(r.product_name||'', tokens)}</td>
+      <td>${highlightTextRaw(r.format||'', tokens)}</td>
+      <td>${highlightTextRaw(r.ean||'', tokens)}</td>
+      <td><b>${highlightTextRaw(String(r.stock_total||0), tokens)}</b></td>
+      <td>${highlightTextRaw(String(r.lots_count||0), tokens)}</td>
+      <td>${highlightTextRaw(r.fefo_lot_number||'—', tokens)}</td>
+      <td>${highlightTextRaw(r.fefo_expiration_date ? formatDateIT(r.fefo_expiration_date) : '—', tokens)}</td>
+      <td class="inv-actions">
+        <button type="button" class="qa-btn" data-qa="sale" data-product="${Number(r.product_id||0)}">Vendi</button>
+        <button type="button" class="qa-btn" data-qa="prod" data-product="${Number(r.product_id||0)}">Produci</button>
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="9">Nessun risultato</td></tr>`;
+}
+
+function renderInventoryLots(rows, tokens){
+  const title = document.getElementById('inv_table_title');
+  if(title) title.innerText = 'Vista per lotti';
+
+  const thead = document.getElementById('inv_thead');
+  const tbody = document.getElementById('inv_tbody');
+  if(!thead || !tbody) return;
+
+  thead.innerHTML = `
+    <tr>
+      <th>Pesce</th><th>Prodotto</th><th>Formato</th><th>Lotto</th>
+      <th>Stock</th><th>Prod.</th><th>Scad.</th><th>Azioni</th>
+    </tr>
+  `;
+
+  const filtered = (rows||[]).filter(r => {
+    if(!tokens.length) return true;
+    return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.lot_number} ${r.stock} ${r.production_date||''} ${r.expiration_date||''}`, tokens);
+  });
+
+  tbody.innerHTML = filtered.map(r => `
+    <tr>
+      <td>${highlightTextRaw(r.fish_type||'', tokens)}</td>
+      <td>${highlightTextRaw(r.product_name||'', tokens)}</td>
+      <td>${highlightTextRaw(r.format||'', tokens)}</td>
+      <td><b>${highlightTextRaw(r.lot_number||'', tokens)}</b></td>
+      <td>${highlightTextRaw(String(r.stock||0), tokens)}</td>
+      <td>${highlightTextRaw(r.production_date ? formatDateIT(r.production_date) : '—', tokens)}</td>
+      <td>${highlightTextRaw(r.expiration_date ? formatDateIT(r.expiration_date) : '—', tokens)}</td>
+      <td class="inv-actions">
+        <button type="button" class="qa-btn" data-qa="sale_lot" data-product="${Number(r.product_id||0)}" data-lot="${Number(r.lot_id||0)}">Vendi lotto</button>
+        <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="8">Nessun risultato</td></tr>`;
+}
+
+
+
+// ==========================
+// INVENTORY: MOVIMENTI (TUTTI) con paginazione
+// - stessa UI della Home (tabella desktop + card mobile)
+// - usa Cache.homeMovements + Cache.homeLotsWithStock (così lotto è sempre quello giusto)
+// ==========================
+function renderInventoryAllMovesFromCache(tokens){
+  const movesTb = document.getElementById('inv_all_moves_table');
+  if(!movesTb) return;
+
+  const lotsWithStock = Cache.homeLotsWithStock || [];
+  const movements = Cache.homeMovements || [];
+
+  const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
+
+  const typeLabel = (t) =>
+    t === 'SALE' ? 'Vendita' :
+    (t === 'PRODUCTION' ? 'Produzione' :
+    (t === 'ADJUSTMENT' ? 'Rettifica' : t));
+
+  const sortedAll = [...movements].sort((a,b)=>{
+    const da = new Date((a.created_at||'').replace(' ', 'T'));
+    const db = new Date((b.created_at||'').replace(' ', 'T'));
+    return db - da;
+  });
+
+  // filtro globale (stesso haystack della Home)
+  let filtered = sortedAll;
+  if(tokens && tokens.length){
+    filtered = sortedAll.filter(m=>{
+      const lot = lotById.get(Number(m.lot_id)) || null;
+      const hay =
+        `${m.created_at} ${m.type} ${m.reason||''} ${m.note||''} ${m.quantity||''} `+
+        `${lot?.fish_type||''} ${lot?.product_name||''} ${lot?.format||''} ${lot?.ean||''} ${lot?.lot_number||''} ${lot?.expiration_date||''}`;
+      return matchesTokens(hay, tokens);
+    });
+  }
+
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / INVENTORY_MOVES_PER_PAGE));
+
+  // clamp pagina
+  INVENTORY_MOVES_PAGE = Math.min(Math.max(1, INVENTORY_MOVES_PAGE), totalPages);
+
+  const start = (INVENTORY_MOVES_PAGE - 1) * INVENTORY_MOVES_PER_PAGE;
+  const pageRows = filtered.slice(start, start + INVENTORY_MOVES_PER_PAGE);
+
+  // UI pager
+  const pageEl = document.getElementById('inv_moves_page');
+  if(pageEl) pageEl.textContent = `${INVENTORY_MOVES_PAGE}/${totalPages}`;
+
+  const countEl = document.getElementById('inv_moves_count');
+  if(countEl){
+    const shownFrom = total ? (start + 1) : 0;
+    const shownTo = Math.min(start + INVENTORY_MOVES_PER_PAGE, total);
+    countEl.textContent = total ? `${shownFrom}-${shownTo} di ${total}` : '0';
+  }
+
+  const prevBtn = document.getElementById('inv_moves_prev');
+  const nextBtn = document.getElementById('inv_moves_next');
+  if(prevBtn) prevBtn.disabled = INVENTORY_MOVES_PAGE <= 1;
+  if(nextBtn) nextBtn.disabled = INVENTORY_MOVES_PAGE >= totalPages;
+
+  movesTb.innerHTML = '';
+
+  if(isMobile()){
+    renderMobileRows(movesTb, pageRows.map(m => {
+      const lot = lotById.get(Number(m.lot_id)) || null;
+
+      const typeClass =
+        m.type === 'SALE'
+          ? 'sale'
+          : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
+
+      const expiration = lot?.expiration_date
+        ? formatDateIT(lot.expiration_date)
+        : '—';
+
+      const qty = Number(m.quantity)||0;
+      const qtyDisplay =
+        m.type === 'SALE'
+          ? `−${Math.abs(qty)}`
+          : (m.type === 'ADJUSTMENT'
+              ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
+              : `+${Math.abs(qty)}`);
+
+      const reasonTxt = (m.type === 'ADJUSTMENT' && m.reason)
+        ? `Motivo: <strong>${highlightTextRaw(String(m.reason).replaceAll('_',' '), tokens)}</strong>`
+        : null;
+
+      return {
+        title: `${highlightTextRaw(lot?.product_name || '—', tokens)} ${lot?.format ? '• ' + highlightTextRaw(lot.format, tokens) : ''}`,
+        lines: [
+          `<span class="badge-move ${typeClass}">${highlightTextRaw(typeLabel(m.type), tokens)}</span> • <strong>${highlightTextRaw(formatDateIT(m.created_at), tokens)}</strong>`,
+          `Lotto: <strong>${highlightTextRaw(lot?.lot_number || '—', tokens)}</strong>`,
+          `Scadenza: <strong>${highlightTextRaw(expiration, tokens)}</strong>`,
+          ...(reasonTxt ? [reasonTxt] : []),
+          ...(m.type === 'ADJUSTMENT' && m.note ? [`Nota: ${highlightTextRaw(String(m.note), tokens)}`] : [])
+        ],
+        right: highlightTextRaw(qtyDisplay, tokens)
+      };
+    }));
+    return;
+  }
+
+  pageRows.forEach(m=>{
+    const lot = lotById.get(Number(m.lot_id)) || null;
+
+    const typeClass =
+      m.type === 'SALE'
+        ? 'sale'
+        : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
+
+    const typeText = typeLabel(m.type);
+
+    const expiration = lot?.expiration_date
+      ? formatDateIT(lot.expiration_date)
+      : '—';
+
+    const qty = Number(m.quantity)||0;
+    const qtyDisplay =
+      m.type === 'SALE'
+        ? `−${Math.abs(qty)}`
+        : (m.type === 'ADJUSTMENT'
+            ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
+            : `+${Math.abs(qty)}`);
+
+    const reasonCell = (m.type === 'ADJUSTMENT')
+      ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">
+           ${m.reason ? `Motivo: <strong>${highlightTextRaw(String(m.reason).replaceAll('_',' '), tokens)}</strong>` : ''}
+           ${m.note ? `<div>Nota: ${highlightTextRaw(String(m.note), tokens)}</div>` : ''}
+         </div>`
+      : '';
+
+    const tr = document.createElement('tr');
+    tr.className = `move-row ${typeClass}`;
+
+    tr.innerHTML = `
+      <td>${highlightTextRaw(formatDateIT(m.created_at), tokens)}</td>
+      <td><span class="badge-move ${typeClass}">${highlightTextRaw(typeText, tokens)}</span></td>
+      <td>
+        <div style="font-weight:700;">${highlightTextRaw(lot?.product_name || '—', tokens)}</div>
+        <div style="font-size:12px;color:#94a3b8;">${highlightTextRaw(lot?.format || '', tokens)}</div>
+        ${reasonCell}
+      </td>
+      <td><strong>${highlightTextRaw(lot?.lot_number || '—', tokens)}</strong></td>
+      <td>${highlightTextRaw(expiration, tokens)}</td>
+      <td style="font-weight:900;">${highlightTextRaw(qtyDisplay, tokens)}</td>
+    `;
+
+    movesTb.appendChild(tr);
+  });
+
+  if(pageRows.length === 0){
+    movesTb.innerHTML = `<tr><td colspan="6" class="muted">Nessun risultato</td></tr>`;
+  }
+}
+
+function renderInventoryMoves(rows, tokens){
+  const tb = document.getElementById('inv_moves_tbody');
+  if(!tb) return;
+
+  const typeLabel = (t) => t === 'SALE' ? 'Vendita' : (t === 'PRODUCTION' ? 'Produzione' : (t === 'ADJUSTMENT' ? 'Rettifica' : t));
+
+  const filtered = (rows||[]).filter(m => {
+    if(!tokens.length) return true;
+    return matchesTokens(`${m.created_at} ${m.type} ${m.quantity} ${m.lot_id||''} ${m.reason||''} ${m.note||''}`, tokens);
+  });
+
+  tb.innerHTML = filtered.map(m => {
+    const qty = Number(m.quantity)||0;
+    const qDisp = m.type === 'SALE' ? `−${Math.abs(qty)}` : (m.type === 'ADJUSTMENT' ? (qty<0?`−${Math.abs(qty)}`:`+${Math.abs(qty)}`) : `+${Math.abs(qty)}`);
+    return `
+      <tr>
+        <td>${highlightTextRaw(formatDateIT(m.created_at), tokens)}</td>
+        <td>${highlightTextRaw(typeLabel(m.type), tokens)}</td>
+        <td>${highlightTextRaw(String(m.lot_id||'—'), tokens)}</td>
+        <td>${highlightTextRaw(qDisp, tokens)}</td>
+      </tr>
+    `;
+  }).join('') || `<tr><td colspan="4">Nessun risultato</td></tr>`;
+}
+
+// ==========================
+// QUICK ACTIONS (Magazzino)
+// ==========================
+function qaEl(id){ return document.getElementById(id); }
+
+function initQuickActionsModal(){
+  // Se il modal non esiste, le quick actions useranno prompt/confirm: no crash.
+  const close = qaEl('qa_close');
+  const modal = qaEl('qa_modal');
+
+  close?.addEventListener('click', qaClose);
+  modal?.addEventListener('click', (e)=>{
+    if(e.target && e.target.id === 'qa_modal') qaClose();
+  });
+}
+
+function qaOpen(title, html){
+  const modal = qaEl('qa_modal');
+  const t = qaEl('qa_title');
+  const body = qaEl('qa_body');
+  const msg = qaEl('qa_msg');
+
+  // fallback: se non c'è modal, non crashare
+  if(!modal || !t || !body) return false;
+
+  t.textContent = title || 'Azione rapida';
+  body.innerHTML = html || '';
+  if(msg) { msg.className = 'muted'; msg.textContent = ''; }
+  modal.classList.remove('hidden');
+  return true;
+}
+function qaClose(){
+  const modal = qaEl('qa_modal');
+  const body = qaEl('qa_body');
+  const msg = qaEl('qa_msg');
+
+  if(modal) modal.classList.add('hidden');
+  if(body) body.innerHTML = '';
+  if(msg) { msg.className = 'muted'; msg.textContent = ''; }
+}
+function qaMsg(type, txt){
+  const el = qaEl('qa_msg');
+  if(!el) return;
+  el.className = (type || 'muted');
+  el.textContent = txt || '';
+}
+
+async function refreshAllAfterAction(){
+  await loadHomeDashboard();
+  await loadProductsTable();
+
+  // ricarico magazzino (reset cache per vedere subito lo stock aggiornato)
+  Cache.inventoryData = null;
+  Cache.inventoryInsights = null;
+  INVENTORY_MOVES_PAGE = 1;
+  if(isTabActive('tab_inventory')) await loadInventoryTab();
+
+  // se l'utente sta su rettifiche, aggiorna anche quella tab
+  if(isTabActive('tab_adjust')) await loadAdjustTab();
+
+  applyGlobalSearch();
+}
+
+async function handleQuickAction(ds){
+  const qa = ds.qa;
+
+  // ----- Vendita rapida FEFO (da prodotto) -----
+  if(qa === 'sale'){
+    const productId = Number(ds.product || 0);
+    if(productId <= 0) return;
+
+    const opened = qaOpen('Vendita rapida (FEFO)', `
+      <div class="qa-row">
+        <div>
+          <div class="muted">Quantità (barattoli)</div>
+          <input id="qa_qty" class="qa-input" type="number" min="1" value="1">
+        </div>
+      </div>
+      <div class="qa-actions">
+        <button class="qa-btn" id="qa_cancel" type="button">Annulla</button>
+        <button class="qa-btn primary" id="qa_go" type="button">Conferma</button>
+      </div>
+    `);
+
+    if(!opened){
+      // fallback minimale senza modal
+      const qty = Number(prompt('Quantità (barattoli):', '1') || 0);
+      if(qty<=0) return;
+      if(!confirm(`Confermi vendita FEFO di ${qty}?`)) return;
+      try{
+        const commit = await fetchJSON('api_sale_commit_v2.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'auto',product_id:productId,quantity:qty})});
+        if(commit?.success===false || commit?.error) return alert(commit.error || 'Errore vendita');
+        await refreshAllAfterAction();
+      }catch(e){ console.error(e); alert('Errore vendita'); }
+      return;
+    }
+
+    qaEl('qa_cancel')?.addEventListener('click', qaClose);
+    qaEl('qa_go')?.addEventListener('click', async ()=>{
+      try{
+        const qty = Number(qaEl('qa_qty')?.value || 0);
+        if(qty<=0) return qaMsg('error','Quantità non valida');
+
+        qaMsg('muted','Controllo stock...');
+        const prev = await fetchJSON('api_sale_preview_v2.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'auto',product_id:productId,quantity:qty})});
+        if(prev?.success===false) return qaMsg('error', prev.error || 'Errore preview');
+
+        qaMsg('muted','Registrazione vendita...');
+        const commit = await fetchJSON('api_sale_commit_v2.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'auto',product_id:productId,quantity:qty})});
+        if(commit?.success===false || commit?.error) return qaMsg('error', commit.error || 'Errore commit');
+
+        qaMsg('success', `✅ Venduti ${commit.sold} barattoli`);
+        await refreshAllAfterAction();
+        setTimeout(qaClose, 500);
+      }catch(e){ console.error(e); qaMsg('error','Errore imprevisto'); }
+    });
+    return;
+  }
+
+  // ----- Vendita rapida su lotto (manual one-lot) -----
+  if(qa === 'sale_lot'){
+    const productId = Number(ds.product || 0);
+    const lotId = Number(ds.lot || 0);
+    if(productId <= 0 || lotId <= 0) return;
+
+    const opened = qaOpen('Vendita rapida (lotto specifico)', `
+      <div class="qa-row">
+        <div>
+          <div class="muted">Quantità (barattoli)</div>
+          <input id="qa_qty" class="qa-input" type="number" min="1" value="1">
+        </div>
+      </div>
+      <div class="qa-actions">
+        <button class="qa-btn" id="qa_cancel" type="button">Annulla</button>
+        <button class="qa-btn primary" id="qa_go" type="button">Conferma</button>
+      </div>
+    `);
+
+    if(!opened){
+      const qty = Number(prompt('Quantità (barattoli):', '1') || 0);
+      if(qty<=0) return;
+      if(!confirm(`Confermi vendita di ${qty} dal lotto selezionato?`)) return;
+      try{
+        const payload = {mode:'manual',product_id:productId,quantity:qty,lots:[{lot_id:lotId,qty}]};
+        const commit = await fetchJSON('api_sale_commit_v2.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(commit?.success===false || commit?.error) return alert(commit.error || 'Errore vendita');
+        await refreshAllAfterAction();
+      }catch(e){ console.error(e); alert('Errore vendita'); }
+      return;
+    }
+
+    qaEl('qa_cancel')?.addEventListener('click', qaClose);
+    qaEl('qa_go')?.addEventListener('click', async ()=>{
+      try{
+        const qty = Number(qaEl('qa_qty')?.value || 0);
+        if(qty<=0) return qaMsg('error','Quantità non valida');
+
+        const payload = {mode:'manual',product_id:productId,quantity:qty,lots:[{lot_id:lotId,qty}]};
+
+        qaMsg('muted','Controllo stock lotto...');
+        const prev = await fetchJSON('api_sale_preview_v2.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(prev?.success===false) return qaMsg('error', prev.error || 'Errore preview');
+
+        qaMsg('muted','Registrazione vendita...');
+        const commit = await fetchJSON('api_sale_commit_v2.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(commit?.success===false || commit?.error) return qaMsg('error', commit.error || 'Errore commit');
+
+        qaMsg('success', `✅ Venduti ${commit.sold} barattoli`);
+        await refreshAllAfterAction();
+        setTimeout(qaClose, 500);
+      }catch(e){ console.error(e); qaMsg('error','Errore imprevisto'); }
+    });
+    return;
+  }
+
+  // ----- Rettifica rapida (lotto) -----
+  if(qa === 'adj'){
+    const lotId = Number(ds.lot || 0);
+    if(lotId <= 0) return;
+
+    const opened = qaOpen('Rettifica rapida', `
+      <div class="qa-row">
+        <div>
+          <div class="muted">Direzione</div>
+          <select id="qa_dir" class="qa-input">
+            <option value="IN">IN (aggiungi)</option>
+            <option value="OUT">OUT (togli)</option>
+          </select>
+        </div>
+        <div>
+          <div class="muted">Quantità</div>
+          <input id="qa_qty" class="qa-input" type="number" min="1" value="1">
+        </div>
+      </div>
+      <div class="qa-row">
+        <div>
+          <div class="muted">Motivo</div>
+          <select id="qa_reason" class="qa-input">
+            <option>ROTTURA</option>
+            <option>RESO</option>
+            <option>INVENTARIO</option>
+            <option>MODIFICA_FORZATA</option>
+            <option>ALTRO</option>
+          </select>
+        </div>
+      </div>
+      <div class="qa-row">
+        <div>
+          <div class="muted">Nota (opzionale)</div>
+          <input id="qa_note" class="qa-input" maxlength="255" placeholder="es. barattolo rotto...">
+        </div>
+      </div>
+      <div class="qa-actions">
+        <button class="qa-btn" id="qa_cancel" type="button">Annulla</button>
+        <button class="qa-btn primary" id="qa_go" type="button">Conferma</button>
+      </div>
+    `);
+
+    if(!opened){
+      const direction = (prompt('Direzione (IN/OUT):', 'OUT') || 'OUT').toUpperCase();
+      const qty = Number(prompt('Quantità:', '1') || 0);
+      const reason = (prompt('Motivo (ROTTURA/RESO/INVENTARIO/MODIFICA_FORZATA/ALTRO):', 'ROTTURA') || 'ROTTURA').toUpperCase();
+      if(qty<=0) return;
+      if(!confirm(`Confermi rettifica ${direction} di ${qty}?`)) return;
+      try{
+        const res = await fetchJSON('api_adjust_stock.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lot_id:lotId,direction,quantity:qty,reason,note:null})});
+        if(res?.success===false || res?.error) return alert(res.error || 'Errore rettifica');
+        await refreshAllAfterAction();
+      }catch(e){ console.error(e); alert('Errore rettifica'); }
+      return;
+    }
+
+    qaEl('qa_cancel')?.addEventListener('click', qaClose);
+    qaEl('qa_go')?.addEventListener('click', async ()=>{
+      try{
+        const direction = qaEl('qa_dir')?.value || 'IN';
+        const qty = Number(qaEl('qa_qty')?.value || 0);
+        const reason = qaEl('qa_reason')?.value || 'ALTRO';
+        const note = (qaEl('qa_note')?.value || '').trim() || null;
+
+        if(qty<=0) return qaMsg('error','Quantità non valida');
+
+        qaMsg('muted','Registrazione rettifica...');
+        const res = await fetchJSON('api_adjust_stock.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lot_id:lotId,direction,quantity:qty,reason,note})});
+        if(res?.success===false || res?.error) return qaMsg('error', res.error || 'Errore rettifica');
+
+        qaMsg('success','✅ Rettifica registrata');
+        await refreshAllAfterAction();
+        setTimeout(qaClose, 500);
+      }catch(e){ console.error(e); qaMsg('error','Errore imprevisto'); }
+    });
+    return;
+  }
+
+  // ----- Produzione rapida (da prodotto) -----
+  if(qa === 'prod'){
+    const productId = Number(ds.product || 0);
+    if(productId <= 0) return;
+
+    const opened = qaOpen('Produzione rapida', `
+      <div class="qa-row">
+        <div>
+          <div class="muted">Quantità</div>
+          <input id="qa_qty" class="qa-input" type="number" min="1" value="1">
+        </div>
+        <div>
+          <div class="muted">Tipo quantità</div>
+          <select id="qa_qtype" class="qa-input">
+            <option value="units">Barattoli</option>
+            <option value="trays">Vassoi</option>
+          </select>
+        </div>
+      </div>
+      <div class="qa-row">
+        <div>
+          <div class="muted">Lotto</div>
+          <input id="qa_lot" class="qa-input" placeholder="es. L2402A">
+        </div>
+        <div>
+          <div class="muted">Scadenza</div>
+          <input id="qa_exp" class="qa-input" type="date">
+        </div>
+      </div>
+      <div class="qa-actions">
+        <button class="qa-btn" id="qa_cancel" type="button">Annulla</button>
+        <button class="qa-btn primary" id="qa_go" type="button">Conferma</button>
+      </div>
+    `);
+
+    if(!opened){
+      const lot_number = (prompt('Lotto:', '') || '').trim();
+      const qty = Number(prompt('Quantità:', '1') || 0);
+      if(!lot_number || qty<=0) return;
+      if(!confirm(`Confermi produzione lotto ${lot_number} (+${qty})?`)) return;
+      try{
+        const res = await fetchJSON('api_production.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_id:productId,lot_number,expiration_date:'',quantity_input:qty,quantity_type:'units'})});
+        if(res?.success===false || res?.error) return alert(res.error || 'Errore produzione');
+        await refreshAllAfterAction();
+      }catch(e){ console.error(e); alert('Errore produzione'); }
+      return;
+    }
+
+    qaEl('qa_cancel')?.addEventListener('click', qaClose);
+    qaEl('qa_go')?.addEventListener('click', async ()=>{
+      try{
+        const quantity_input = Number(qaEl('qa_qty')?.value || 0);
+        const quantity_type = qaEl('qa_qtype')?.value || 'units';
+        const lot_number = (qaEl('qa_lot')?.value || '').trim();
+        const expiration_date = (qaEl('qa_exp')?.value || '').trim();
+
+        if(quantity_input<=0 || !lot_number) return qaMsg('error','Dati mancanti (quantità/lotto)');
+
+        qaMsg('muted','Registrazione produzione...');
+        const res = await fetchJSON('api_production.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_id:productId,lot_number,expiration_date,quantity_input,quantity_type})});
+        if(res?.success===false || res?.error) return qaMsg('error', res.error || 'Errore produzione');
+
+        qaMsg('success','✅ Produzione registrata');
+        await refreshAllAfterAction();
+        setTimeout(qaClose, 500);
+      }catch(e){ console.error(e); qaMsg('error','Errore imprevisto'); }
+    });
+    return;
+  }
+}
