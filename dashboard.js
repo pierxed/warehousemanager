@@ -1,5 +1,6 @@
 // ---------- DASHBOARD ----------
 let salesChart = null;
+let SHOW_ARCHIVED_PRODUCTS = false;
 
 function isMobile(){
   return window.matchMedia("(max-width: 680px)").matches;
@@ -470,8 +471,8 @@ function extractWeight(format){
 
 async function loadProducts() {
 
-  PRODUCTS = await fetchJSON('api_products.php');
-  PRODUCTS = (PRODUCTS || []).filter(p => Number(p.is_active ?? 1) === 1);
+PRODUCTS = await fetchJSON('api_products.php');
+PRODUCTS = PRODUCTS || [];
 
   const productNames = [...new Set(PRODUCTS.map(p => p.name))]
     .sort((a,b)=> a.localeCompare(b));
@@ -1342,147 +1343,211 @@ const SaleUI = (() => {
 })();
 
 // ---------- PRODOTTI TAB ----------
-async function loadProductsTable(){
-  const rows = await fetchJSON('api_products_with_stock.php');
+async function loadProductsTable(e){
+  const res = await fetchJSON('api_products_with_stock.php');
+
+  // ✅ normalizza: accetta array puro oppure oggetto {rows:[...]}
+  const rows = Array.isArray(res) ? res : (Array.isArray(res?.rows) ? res.rows : []);
+
+  if(!Array.isArray(rows)){
+    console.error('api_products_with_stock.php returned non-array:', res);
+    return;
+  }
+
   const container = document.getElementById('products_container');
   if(!container) return;
 
+  const toggle = document.getElementById('toggle_archived_products');
+  const showArchived = (e?.target?.id === 'toggle_archived_products')
+    ? !!e.target.checked
+    : !!toggle?.checked;
+
   container.innerHTML='';
 
-  rows.forEach(p=>{
+  rows
+    .filter(p => showArchived ? true : Number(p.is_active ?? 1) === 1)
+    .forEach(p=>{
 
-    const imageSrc = p.image_path ? p.image_path : 'uploads/stock.jpg';
+      const imageSrc = p.image_path ? p.image_path : 'uploads/stock.jpg';
 
-    const card=document.createElement('div');
-    card.className='product-card';
-    card.dataset.id = p.id;
+      const card=document.createElement('div');
+      card.className='product-card';
+      card.dataset.id = p.id;
 
-    card.innerHTML=`
-      <div class="product-header">
-        <img src="${imageSrc}" class="product-img">
+      card.innerHTML=`
+        <div class="product-header">
+          <img src="${imageSrc}" class="product-img">
 
-        <div class="product-info">
-          <div class="view-mode">
-            <div class="product-name">${p.name}</div>
-            <div class="product-meta">Formato: ${p.format || ''}</div>
-            <div class="product-meta">
-              Unità per vassoio: <strong>${p.units_per_tray}</strong>
+          <div class="product-info">
+            <div class="view-mode">
+              <div class="product-name">
+                ${p.name}
+                ${Number(p.is_active ?? 1) === 0
+                  ? `<span style="
+                      margin-left:8px;
+                      font-size:11px;
+                      padding:2px 8px;
+                      border-radius:999px;
+                      background:#ef4444;
+                      color:white;
+                    ">ARCHIVIATO</span>`
+                  : ''}
+              </div>
+              <div class="product-meta">Formato: ${p.format || ''}</div>
+              <div class="product-meta">
+                Unità per vassoio: <strong>${p.units_per_tray}</strong>
+              </div>
+              <div class="product-meta">EAN: ${p.ean}</div>
             </div>
-            <div class="product-meta">EAN: ${p.ean}</div>
-          </div>
 
-          <div class="edit-mode hidden">
-            <input class="edit-name" value="${p.name}">
-            <input class="edit-format" value="${p.format || ''}">
-            <input class="edit-units" type="number" value="${p.units_per_tray}" min="1">
+            <div class="edit-mode hidden">
+              <input class="edit-name" value="${p.name}">
+              <input class="edit-format" value="${p.format || ''}">
+              <input class="edit-units" type="number" value="${p.units_per_tray}" min="1">
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="product-stock">
-        Stock totale: ${p.stock} barattoli
-      </div>
+        <div class="product-stock">
+          Stock totale: ${p.stock} barattoli
+        </div>
 
-      <div class="product-actions view-mode">
-        <button class="btn-small btn-edit">Modifica</button>
-        <button class="btn-small btn-danger btn-delete">Elimina</button>
-      </div>
+        <div class="product-actions view-mode">
+          <button class="btn-small btn-edit">Modifica</button>
 
-      <div class="product-actions edit-mode hidden">
-        <button class="btn-small btn-save">Salva</button>
-        <button class="btn-small btn-cancel">Annulla</button>
-      </div>
-    `;
+          <button class="btn-small btn-danger btn-delete">
+            ${Number(p.is_active ?? 1) === 1 ? 'Archivia' : 'Elimina definitivamente'}
+          </button>
 
-    const editBtn = card.querySelector('.btn-edit');
-    const deleteBtn = card.querySelector('.btn-delete');
-    const saveBtn = card.querySelector('.btn-save');
-    const cancelBtn = card.querySelector('.btn-cancel');
+          ${Number(p.is_active ?? 1) === 0
+            ? `<button class="btn-small btn-restore">Riattiva</button>`
+            : ''
+          }
+        </div>
 
-    const viewModes = card.querySelectorAll('.view-mode');
-    const editModes = card.querySelectorAll('.edit-mode');
+        <div class="product-actions edit-mode hidden">
+          <button class="btn-small btn-save">Salva</button>
+          <button class="btn-small btn-cancel">Annulla</button>
+        </div>
+      `;
 
-    editBtn.addEventListener('click', ()=>{
-      card.classList.add('editing');
-      viewModes.forEach(el=>el.classList.add('hidden'));
-      editModes.forEach(el=>el.classList.remove('hidden'));
-    });
+      const editBtn = card.querySelector('.btn-edit');
+      const deleteBtn = card.querySelector('.btn-delete');
+      const restoreBtn = card.querySelector('.btn-restore');
+      const saveBtn = card.querySelector('.btn-save');
+      const cancelBtn = card.querySelector('.btn-cancel');
 
-    cancelBtn.addEventListener('click', ()=>{
-      card.classList.remove('editing');
-      editModes.forEach(el=>el.classList.add('hidden'));
-      viewModes.forEach(el=>el.classList.remove('hidden'));
-    });
+      const viewModes = card.querySelectorAll('.view-mode');
+      const editModes = card.querySelectorAll('.edit-mode');
 
-    saveBtn.addEventListener('click', async ()=>{
-      const newName = card.querySelector('.edit-name').value.trim();
-      const newFormat = card.querySelector('.edit-format').value.trim();
-      const newUnits = parseInt(card.querySelector('.edit-units').value,10);
-
-      if(!newName || newUnits <= 0){
-        alert("Dati non validi");
-        return;
-      }
-
-      const res = await fetchJSON('api_update_product.php',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          id:p.id,
-          name:newName,
-          format:newFormat,
-          units:newUnits
-        })
+      editBtn.addEventListener('click', ()=>{
+        card.classList.add('editing');
+        viewModes.forEach(el=>el.classList.add('hidden'));
+        editModes.forEach(el=>el.classList.remove('hidden'));
       });
 
-      if(res.error){
-        alert(res.error);
-        return;
-      }
+      restoreBtn?.addEventListener('click', async ()=>{
+        const res = await fetchJSON('api_restore_product.php',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ id:p.id })
+        });
 
-      card.classList.remove('editing');
-      card.classList.add('saved');
+        if(res?.error){
+          alert(res.error);
+          return;
+        }
 
-      setTimeout(()=>{ card.classList.remove('saved'); },600);
-
-      await loadProducts();
-      await loadProductsTable();
-    });
-
-    deleteBtn.addEventListener('click', async () => {
-      if (!confirm("Eliminare il prodotto?")) return;
-
-      const res = await fetchJSON('api_delete_product.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: p.id })
+        await loadProducts();
+        await loadProductsTable();
       });
 
-      if (res?.success === false) {
-        alert(res.error || 'Errore eliminazione');
-        return;
-      }
-      if (res?.error) {
-        alert(res.error);
-        return;
-      }
+      cancelBtn.addEventListener('click', ()=>{
+        card.classList.remove('editing');
+        editModes.forEach(el=>el.classList.add('hidden'));
+        viewModes.forEach(el=>el.classList.remove('hidden'));
+      });
 
-      if (res?.mode === 'soft') {
-        alert('Prodotto archiviato! (aveva lotti/movimenti).');
-      } else if (res?.mode === 'hard') {
-        alert('Prodotto eliminato.');
-      } else {
-        alert('Operazione completata.');
-      }
+      saveBtn.addEventListener('click', async ()=>{
+        const newName = card.querySelector('.edit-name').value.trim();
+        const newFormat = card.querySelector('.edit-format').value.trim();
+        const newUnits = parseInt(card.querySelector('.edit-units').value,10);
 
-      await loadProducts();
-      await loadProductsTable();
-    });
+        if(!newName || newUnits <= 0){
+          alert("Dati non validi");
+          return;
+        }
 
-    container.appendChild(card);
+        const res = await fetchJSON('api_update_product.php',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            id:p.id,
+            name:newName,
+            format:newFormat,
+            units:newUnits
+          })
+        });
+
+        if(res?.error){
+          alert(res.error);
+          return;
+        }
+
+        card.classList.remove('editing');
+        card.classList.add('saved');
+
+        setTimeout(()=>{ card.classList.remove('saved'); },600);
+
+        await loadProducts();
+        await loadProductsTable();
+      });
+
+      deleteBtn.addEventListener('click', async () => {
+
+  const isArchived = Number(p.is_active ?? 1) === 0;
+
+  const question = isArchived
+    ? "Eliminare DEFINITIVAMENTE il prodotto?\n(se ha movimenti/lotti verrà solo mantenuto archiviato)"
+    : "Archiviare il prodotto?";
+
+  if (!confirm(question)) return;
+
+  const res = await fetchJSON('api_delete_product.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: p.id })
   });
-}
 
+  // se il backend ritorna success:false o error
+  if (res?.success === false) {
+    alert(res.error || 'Errore eliminazione');
+    return;
+  }
+  if (res?.error) {
+    alert(res.error);
+    return;
+  }
+
+  // UX chiara
+  if (res?.mode === 'soft') {
+    alert(isArchived
+      ? '⚠ Non posso eliminare definitivamente: ha lotti/movimenti. Rimane archiviato.'
+      : '✅ Prodotto archiviato.'
+    );
+  } else if (res?.mode === 'hard') {
+    alert('✅ Prodotto eliminato definitivamente.');
+  } else {
+    alert('✅ Operazione completata.');
+  }
+
+  await loadProducts();
+  await loadProductsTable();
+});
+
+      container.appendChild(card);
+    });
+}
 
 // ---------- RETTIFICHE (ADJUSTMENT) ----------
 let ADJUST_TAB_READY = false;
@@ -1620,6 +1685,13 @@ async function loadAdjustTab(){
 // ---------- INIT ----------
 window.addEventListener('DOMContentLoaded', async ()=>{
 
+  document
+  .getElementById('toggle_archived_products')
+  ?.addEventListener('change', (e)=>{
+    SHOW_ARCHIVED_PRODUCTS = e.target.checked;
+    loadProductsTable();
+  });
+
   document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const targetId = btn.dataset.target;
@@ -1648,7 +1720,10 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   SaleUI.init();
 
   await loadHomeDashboard();
-  await loadProductsTable();
+SHOW_ARCHIVED_PRODUCTS =
+  document.getElementById('toggle_archived_products')?.checked === true;
+
+await loadProductsTable();
   await refreshTodayBatches();
 
   // ---------- CREA PRODOTTO ----------
