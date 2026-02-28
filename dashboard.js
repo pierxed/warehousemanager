@@ -1,5 +1,28 @@
 // ---------- DASHBOARD ----------
-let homeChart = null;
+let salesChart = null;
+
+function isMobile(){
+  return window.matchMedia("(max-width: 680px)").matches;
+}
+
+function renderMobileRows(tbody, rows){
+  // rows: array di oggetti {title, lines:[...], right}
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="padding:12px 14px;">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+          <div>
+            <div style="font-weight:900;">${r.title}</div>
+            <div style="color:#64748b;font-size:13px;margin-top:4px;display:grid;gap:2px;">
+              ${r.lines.map(x => `<div>${x}</div>`).join("")}
+            </div>
+          </div>
+          <div style="font-weight:900;white-space:nowrap;">${r.right ?? ""}</div>
+        </div>
+      </td>
+    </tr>
+  `).join("") || `<tr><td class="muted" style="padding:12px 14px;">Nessuna</td></tr>`;
+}
 
 async function loadHomeDashboard(){
 
@@ -121,49 +144,160 @@ if(lotsBody){
   });
 
   document.getElementById('card_expiring').innerText = expiringLots.length;
+// ---- HOME: scadenze divise 0-7 / 8-30 ----
+const tb7 = document.getElementById('expiry_7_table');
+const tb30 = document.getElementById('expiry_30_table');
 
-  // mini tabella
-  const mini = document.getElementById('mini_lots_table');
-  if(mini){
-    mini.innerHTML = '';
-    expiringLots.forEach(l=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
+if(tb7 && tb30){
+  tb7.innerHTML = '';
+  tb30.innerHTML = '';
+
+  const inDays = (d) => Math.ceil((new Date(d) - today) / (1000*60*60*24));
+
+  const exp7 = [];
+  const exp30 = [];
+
+  expiringLots
+    .sort((a,b)=> new Date(a.expiration_date) - new Date(b.expiration_date))
+    .forEach(l=>{
+      const days = inDays(l.expiration_date);
+
+      if(days >= 0 && days <= 7) exp7.push(l);
+      else if(days >= 8 && days <= 30) exp30.push(l);
+    });
+
+  if(isMobile()){
+    renderMobileRows(tb7, exp7.slice(0,8).map(l => ({
+      title: l.product_name,
+      lines: [
+        `Lotto: <strong>${l.lot_number}</strong>`,
+        `Scadenza: <strong>${formatDateIT(l.expiration_date)}</strong>`
+      ],
+      right: `${l.stock}`
+    })));
+
+    renderMobileRows(tb30, exp30.slice(0,8).map(l => ({
+      title: l.product_name,
+      lines: [
+        `Lotto: <strong>${l.lot_number}</strong>`,
+        `Scadenza: <strong>${formatDateIT(l.expiration_date)}</strong>`
+      ],
+      right: `${l.stock}`
+    })));
+  } else {
+    tb7.innerHTML = exp7.slice(0,8).map(l => `
+      <tr>
         <td>${l.product_name}</td>
         <td>${l.lot_number}</td>
         <td>${l.stock}</td>
         <td>${formatDateIT(l.expiration_date)}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="4" class="muted">Nessuna</td></tr>`;
+
+    tb30.innerHTML = exp30.slice(0,8).map(l => `
+      <tr>
+        <td>${l.product_name}</td>
+        <td>${l.lot_number}</td>
+        <td>${l.stock}</td>
+        <td>${formatDateIT(l.expiration_date)}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="4" class="muted">Nessuna</td></tr>`;
+  }
+}
+
+// ---- HOME: ultimi movimenti (10) ----
+const movesTb = document.getElementById('last_moves_table');
+if(movesTb){
+  movesTb.innerHTML = '';
+
+  const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
+
+  const sortedMoves = [...movements].sort((a,b)=>{
+    const da = new Date((a.created_at||'').replace(' ', 'T'));
+    const db = new Date((b.created_at||'').replace(' ', 'T'));
+    return db - da;
+  }).slice(0, 10);
+
+  const typeLabel = (t) => t === 'SALE' ? 'Vendita' : (t === 'PRODUCTION' ? 'Produzione' : t);
+
+  if(isMobile()){
+    renderMobileRows(movesTb, sortedMoves.map(m => {
+      const lot = lotById.get(Number(m.lot_id)) || null;
+      return {
+        title: lot?.product_name || '—',
+        lines: [
+          `${typeLabel(m.type)} • <strong>${formatDateIT(m.created_at)}</strong>`,
+          `Lotto: <strong>${lot?.lot_number || '—'}</strong>`
+        ],
+        right: `${Number(m.quantity)||0}`
+      };
+    }));
+  } else {
+    sortedMoves.forEach(m=>{
+      const lot = lotById.get(Number(m.lot_id)) || null;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${formatDateIT(m.created_at)}</td>
+        <td>${typeLabel(m.type)}</td>
+        <td>${lot?.product_name || '—'}</td>
+        <td>${lot?.lot_number || '—'}</td>
+        <td>${Number(m.quantity)||0}</td>
       `;
-      mini.appendChild(tr);
+      movesTb.appendChild(tr);
     });
+
+    if(sortedMoves.length === 0){
+      movesTb.innerHTML = `<tr><td colspan="5" class="muted">Nessun movimento</td></tr>`;
+    }
   }
+}
 
-  // grafico
-  const chartEl = document.getElementById('homeChart');
-  if(chartEl){
-    const top = [...lotsWithStock]
-      .filter(l => (Number(l.stock)||0) > 0)
-      .sort((a,b)=> (b.stock||0) - (a.stock||0))
-      .slice(0, 20);
+// ---- HOME: grafico Top vendite per prodotto (ultimi 30 giorni) ----
+const salesEl = document.getElementById('salesChart');
+if(salesEl){
+  const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
 
-    const labels = top.map(l => `${l.product_name} (${l.lot_number})`);
-    const data = top.map(l => Number(l.stock)||0);
+  const from = new Date(today);
+  from.setDate(from.getDate() - 30);
 
-    if(homeChart) homeChart.destroy();
+  const soldByProduct = new Map();
 
-    homeChart = new Chart(chartEl, {
-      type:'bar',
-      data:{
-        labels,
-        datasets:[{
-          label:'Stock (barattoli)',
-          data,
-          backgroundColor:'#40739e'
-        }]
-      },
-      options:{ responsive:true }
-    });
-  }
+  movements.forEach(m=>{
+    if(m.type !== 'SALE') return;
+
+    const d = new Date((m.created_at||'').replace(' ', 'T'));
+    if(isNaN(d) || d < from) return;
+
+    const lot = lotById.get(Number(m.lot_id)) || null;
+    const productName = lot?.product_name || 'Sconosciuto';
+
+    const qty = Number(m.quantity)||0;
+    soldByProduct.set(productName, (soldByProduct.get(productName)||0) + qty);
+  });
+
+  const top = [...soldByProduct.entries()]
+    .sort((a,b)=> b[1]-a[1])
+    .slice(0, 10);
+
+  const labels = top.map(x=> x[0]);
+  const data = top.map(x=> x[1]);
+
+  if(salesChart) salesChart.destroy();
+
+  salesChart = new Chart(salesEl, {
+    type: 'bar',
+    data:{
+      labels,
+      datasets:[{ label:'Barattoli venduti', data }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+}
 
   showExpiryToasts(expiringLots);
 }
@@ -560,11 +694,13 @@ document.getElementById('btn_sale')?.addEventListener('click', async ()=>{
       body: JSON.stringify({product_id:product.id,quantity})
     });
 
+    console.log("api_sale response:", data);
+
     if(data.error){
-      msg.classList.add('error');
-      msg.textContent = data.error;
-      return;
-    }
+  msg.classList.add('error');
+  msg.textContent = data.detail ? `${data.error}: ${data.detail}` : data.error;
+  return;
+}
 
     msg.classList.add('success');
     msg.textContent = `Venduti ${data.sold} barattoli`;

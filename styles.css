@@ -677,3 +677,113 @@ canvas{
     gap: 8px;
   }
 }
+
+/* ===== HOME ===== */
+.home-grid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: var(--gap);
+  margin-top: var(--gap);
+}
+
+.home-split{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.mini-title{ margin-bottom: 10px; }
+
+.badge{
+  display:inline-block;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  border:1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text);
+}
+.badge.danger{
+  border-color: rgba(220,38,38,.25);
+  background: rgba(220,38,38,.08);
+  color: #991b1b;
+}
+.badge.warn{
+  border-color: rgba(245,158,11,.25);
+  background: rgba(245,158,11,.10);
+  color: #92400e;
+}
+
+/* chart area più leggibile */
+.chart-wrap{
+  height: 340px;
+}
+
+/* responsive */
+@media (max-width: 980px){
+  .home-split{ grid-template-columns: 1fr; }
+}
+@media (max-width: 680px){
+  .chart-wrap{ height: 260px; }
+}
+
+/* Home tables: non forzare min-width gigante */
+.home-grid table{
+  min-width: 0 !important;
+}
+
+/* ===== HOME mobile: niente scroll orizzontale ===== */
+@media (max-width: 680px){
+  /* evita overflow generale */
+  .main{ overflow-x: hidden; }
+
+  /* home: blocca tabelle larghe e canvas */
+  .home-grid .table-wrap{ overflow: hidden; }
+  .home-grid table{ min-width: 0 !important; }
+
+  .chart-wrap{ overflow: hidden; }
+  #salesChart{ display:block; width:100% !important; }
+}
+@media (max-width:680px){
+  .card{ max-width: 100%; }
+}
+
+/* ===== HOME mobile: tabelle -> lista leggibile ===== */
+@media (max-width: 680px){
+  /* Solo Home: niente intestazioni tabella */
+  .home-grid .table-wrap thead{
+    display:none !important;
+  }
+
+  /* Table non deve forzare colonne */
+  .home-grid .table-wrap table{
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: fixed;
+  }
+
+  /* Ogni riga diventa un blocco */
+  .home-grid .table-wrap tbody tr{
+    display:block;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* La singola cella che noi riempiamo diventa la "card" */
+  .home-grid .table-wrap tbody td{
+    display:block;
+    padding: 12px 14px;
+    border-bottom: none;
+  }
+
+  /* Evita overflow dei contenuti lunghi */
+  .home-grid .table-wrap *{
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Grafico: evita sbordi */
+  .chart-wrap{ overflow:hidden; }
+  #salesChart{ width:100% !important; display:block; }
+}

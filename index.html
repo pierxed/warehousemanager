@@ -58,60 +58,121 @@
       <div class="container">
 
         <!-- HOME -->
-        <section id="tab_home" class="tab active">
-          <div class="section-head">
-            <h2 class="h2">Home</h2>
-            <div class="muted">Riepilogo rapido</div>
+       <section id="tab_home" class="tab active">
+
+  <div class="section-head">
+    <h2 class="h2">Home</h2>
+    <div class="muted">Riepilogo rapido</div>
+  </div>
+
+  <!-- KPI -->
+  <div class="dashboard-cards">
+    <div class="card kpi">
+      <h3>Stock totale (barattoli)</h3>
+      <p id="card_total_stock">0</p>
+    </div>
+
+    <div class="card kpi">
+      <h3>Lotti in scadenza &lt; 30gg</h3>
+      <p id="card_expiring">0</p>
+    </div>
+
+    <div class="card kpi">
+      <h3>Barattoli prodotti oggi</h3>
+      <p id="card_today_production">0</p>
+    </div>
+  </div>
+
+  <!-- CONTENUTI HOME -->
+  <div class="home-grid">
+
+    <!-- SCADENZE -->
+    <div class="card">
+      <div class="card-head">
+        <h3>Scadenze</h3>
+        <div class="muted">Solo stock &gt; 0</div>
+      </div>
+
+      <div class="home-split">
+        <div class="mini-block">
+          <div class="mini-title">
+            <span class="badge danger">0–7 giorni</span>
           </div>
 
-          <div class="dashboard-cards">
-            <div class="card kpi">
-              <h3>Stock totale (barattoli)</h3>
-              <p id="card_total_stock">0</p>
-            </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Prodotto</th>
+                  <th>Lotto</th>
+                  <th>Stock</th>
+                  <th>Scad.</th>
+                </tr>
+              </thead>
+              <tbody id="expiry_7_table"></tbody>
+            </table>
+          </div>
+        </div>
 
-            <div class="card kpi">
-              <h3>Lotti in scadenza &lt; 30gg</h3>
-              <p id="card_expiring">0</p>
-            </div>
-
-            <div class="card kpi">
-              <h3>Barattoli prodotti oggi</h3>
-              <p id="card_today_production">0</p>
-            </div>
+        <div class="mini-block">
+          <div class="mini-title">
+            <span class="badge warn">8–30 giorni</span>
           </div>
 
-          <div class="split">
-            <section class="card mini-table">
-              <div class="card-head">
-                <h2 class="h2">Scadenze entro 30 giorni</h2>
-                <div class="muted">Occhio qui 👀</div>
-              </div>
-
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Prodotto</th>
-                      <th>Lotto</th>
-                      <th>Stock</th>
-                      <th>Scadenza</th>
-                    </tr>
-                  </thead>
-                  <tbody id="mini_lots_table"></tbody>
-                </table>
-              </div>
-            </section>
-
-            <section class="card mini-chart">
-              <div class="card-head">
-                <h2 class="h2">Stock per Lotto (Top 20)</h2>
-                <div class="muted">Grafico</div>
-              </div>
-              <canvas id="homeChart"></canvas>
-            </section>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Prodotto</th>
+                  <th>Lotto</th>
+                  <th>Stock</th>
+                  <th>Scad.</th>
+                </tr>
+              </thead>
+              <tbody id="expiry_30_table"></tbody>
+            </table>
           </div>
-        </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- ULTIMI MOVIMENTI -->
+    <div class="card">
+      <div class="card-head">
+        <h3>Ultimi movimenti</h3>
+        <div class="muted">Ultimi 10</div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Prodotto</th>
+              <th>Lotto</th>
+              <th>Q.tà</th>
+            </tr>
+          </thead>
+          <tbody id="last_moves_table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- GRAFICO VENDITE TOP -->
+    <div class="card">
+      <div class="card-head">
+        <h3>Top vendite per prodotto</h3>
+        <div class="muted">Ultimi 30 giorni</div>
+      </div>
+
+      <div class="chart-wrap">
+        <canvas id="salesChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+</section>
 
         <!-- PRODOTTI -->
         <section id="tab_products" class="tab">
