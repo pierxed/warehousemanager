@@ -47,88 +47,82 @@ async function loadHomeDashboard(){
   const lotsWithStock = lots.map(l => ({
     ...l,
     stock: stockByLot.get(Number(l.lot_id)) || 0
-    
-  }
-
-));
-
-
-
+  }));
 
   // stock totale
   const totalStock = lotsWithStock.reduce((s,l)=> s + Math.max(0, Number(l.stock)||0), 0);
   document.getElementById('card_total_stock').innerText = totalStock;
 
   // ---------- TAB STOCK ----------
-const stockBody = document.querySelector('#stock_table tbody');
-if(stockBody){
-  stockBody.innerHTML = '';
+  const stockBody = document.querySelector('#stock_table tbody');
+  if(stockBody){
+    stockBody.innerHTML = '';
 
-  const stockByProduct = new Map();
+    const stockByProduct = new Map();
 
-  for(const l of lotsWithStock){
-    const pid = Number(l.product_id);
-    const prev = stockByProduct.get(pid) || 0;
-    stockByProduct.set(pid, prev + (Number(l.stock)||0));
-  }
+    for(const l of lotsWithStock){
+      const pid = Number(l.product_id);
+      const prev = stockByProduct.get(pid) || 0;
+      stockByProduct.set(pid, prev + (Number(l.stock)||0));
+    }
 
-  const productsMap = new Map();
-  for(const l of lotsWithStock){
-        productsMap.set(Number(l.product_id), {
+    const productsMap = new Map();
+    for(const l of lotsWithStock){
+      productsMap.set(Number(l.product_id), {
         fish_type: l.fish_type,
         name: l.product_name,
         format: l.format,
         ean: l.ean
-        });
-  }
+      });
+    }
 
-  [...productsMap.entries()].forEach(([pid, info])=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-          <td>${info.fish_type}</td>
+    [...productsMap.entries()].forEach(([pid, info])=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${info.fish_type}</td>
         <td>${info.name}</td>
         <td>${info.format}</td>
         <td>${info.ean}</td>
         <td>${stockByProduct.get(pid) || 0}</td>
-    `;
-    stockBody.appendChild(tr);
-  });
-}
-
-// ---------- TAB LOTTI ----------
-const lotsBody = document.querySelector('#lots_table tbody');
-if(lotsBody){
-  lotsBody.innerHTML = '';
-
-  lotsWithStock
-    .sort((a,b)=> new Date(a.expiration_date) - new Date(b.expiration_date))
-    .forEach(l=>{
-
-      const diffDays = Math.ceil((new Date(l.expiration_date) - today)/(1000*60*60*24));
-
-      let bg = '';
-      if(diffDays<=30) bg='#e84118';
-      else if(diffDays<=90) bg='#fbc531';
-      else bg='#44bd32';
-
-      const tr = document.createElement('tr');
-      tr.style.backgroundColor = bg;
-      tr.style.color = 'white';
-
-      tr.innerHTML = `
-        <td>${l.fish_type}</td>
-        <td>${l.product_name}</td>
-        <td>${l.format}</td>
-        <td>${l.ean}</td>
-        <td>${l.lot_number}</td>
-        <td>${l.stock}</td>
-        <td>${formatDateIT(l.production_date)}</td>
-        <td>${formatDateIT(l.expiration_date)}</td>
       `;
-
-      lotsBody.appendChild(tr);
+      stockBody.appendChild(tr);
     });
-}
+  }
+
+  // ---------- TAB LOTTI ----------
+  const lotsBody = document.querySelector('#lots_table tbody');
+  if(lotsBody){
+    lotsBody.innerHTML = '';
+
+    lotsWithStock
+      .sort((a,b)=> new Date(a.expiration_date) - new Date(b.expiration_date))
+      .forEach(l=>{
+
+        const diffDays = Math.ceil((new Date(l.expiration_date) - today)/(1000*60*60*24));
+
+        let bg = '';
+        if(diffDays<=30) bg='#e84118';
+        else if(diffDays<=90) bg='#fbc531';
+        else bg='#44bd32';
+
+        const tr = document.createElement('tr');
+        tr.style.backgroundColor = bg;
+        tr.style.color = 'white';
+
+        tr.innerHTML = `
+          <td>${l.fish_type}</td>
+          <td>${l.product_name}</td>
+          <td>${l.format}</td>
+          <td>${l.ean}</td>
+          <td>${l.lot_number}</td>
+          <td>${l.stock}</td>
+          <td>${formatDateIT(l.production_date)}</td>
+          <td>${formatDateIT(l.expiration_date)}</td>
+        `;
+
+        lotsBody.appendChild(tr);
+      });
+  }
 
   // produzione oggi
   const totalTodayProduction = movements
@@ -144,160 +138,161 @@ if(lotsBody){
   });
 
   document.getElementById('card_expiring').innerText = expiringLots.length;
-// ---- HOME: scadenze divise 0-7 / 8-30 ----
-const tb7 = document.getElementById('expiry_7_table');
-const tb30 = document.getElementById('expiry_30_table');
 
-if(tb7 && tb30){
-  tb7.innerHTML = '';
-  tb30.innerHTML = '';
+  // ---- HOME: scadenze divise 0-7 / 8-30 ----
+  const tb7 = document.getElementById('expiry_7_table');
+  const tb30 = document.getElementById('expiry_30_table');
 
-  const inDays = (d) => Math.ceil((new Date(d) - today) / (1000*60*60*24));
+  if(tb7 && tb30){
+    tb7.innerHTML = '';
+    tb30.innerHTML = '';
 
-  const exp7 = [];
-  const exp30 = [];
+    const inDays = (d) => Math.ceil((new Date(d) - today) / (1000*60*60*24));
 
-  expiringLots
-    .sort((a,b)=> new Date(a.expiration_date) - new Date(b.expiration_date))
-    .forEach(l=>{
-      const days = inDays(l.expiration_date);
+    const exp7 = [];
+    const exp30 = [];
 
-      if(days >= 0 && days <= 7) exp7.push(l);
-      else if(days >= 8 && days <= 30) exp30.push(l);
-    });
+    expiringLots
+      .sort((a,b)=> new Date(a.expiration_date) - new Date(b.expiration_date))
+      .forEach(l=>{
+        const days = inDays(l.expiration_date);
 
-  if(isMobile()){
-    renderMobileRows(tb7, exp7.slice(0,8).map(l => ({
-      title: l.product_name,
-      lines: [
-        `Lotto: <strong>${l.lot_number}</strong>`,
-        `Scadenza: <strong>${formatDateIT(l.expiration_date)}</strong>`
-      ],
-      right: `${l.stock}`
-    })));
+        if(days >= 0 && days <= 7) exp7.push(l);
+        else if(days >= 8 && days <= 30) exp30.push(l);
+      });
 
-    renderMobileRows(tb30, exp30.slice(0,8).map(l => ({
-      title: l.product_name,
-      lines: [
-        `Lotto: <strong>${l.lot_number}</strong>`,
-        `Scadenza: <strong>${formatDateIT(l.expiration_date)}</strong>`
-      ],
-      right: `${l.stock}`
-    })));
-  } else {
-    tb7.innerHTML = exp7.slice(0,8).map(l => `
-      <tr>
-        <td>${l.product_name}</td>
-        <td>${l.lot_number}</td>
-        <td>${l.stock}</td>
-        <td>${formatDateIT(l.expiration_date)}</td>
-      </tr>
-    `).join('') || `<tr><td colspan="4" class="muted">Nessuna</td></tr>`;
-
-    tb30.innerHTML = exp30.slice(0,8).map(l => `
-      <tr>
-        <td>${l.product_name}</td>
-        <td>${l.lot_number}</td>
-        <td>${l.stock}</td>
-        <td>${formatDateIT(l.expiration_date)}</td>
-      </tr>
-    `).join('') || `<tr><td colspan="4" class="muted">Nessuna</td></tr>`;
-  }
-}
-
-// ---- HOME: ultimi movimenti (10) ----
-const movesTb = document.getElementById('last_moves_table');
-if(movesTb){
-  movesTb.innerHTML = '';
-
-  const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
-
-  const sortedMoves = [...movements].sort((a,b)=>{
-    const da = new Date((a.created_at||'').replace(' ', 'T'));
-    const db = new Date((b.created_at||'').replace(' ', 'T'));
-    return db - da;
-  }).slice(0, 10);
-
-  const typeLabel = (t) => t === 'SALE' ? 'Vendita' : (t === 'PRODUCTION' ? 'Produzione' : t);
-
-  if(isMobile()){
-    renderMobileRows(movesTb, sortedMoves.map(m => {
-      const lot = lotById.get(Number(m.lot_id)) || null;
-      return {
-        title: lot?.product_name || '—',
+    if(isMobile()){
+      renderMobileRows(tb7, exp7.slice(0,8).map(l => ({
+        title: l.product_name,
         lines: [
-          `${typeLabel(m.type)} • <strong>${formatDateIT(m.created_at)}</strong>`,
-          `Lotto: <strong>${lot?.lot_number || '—'}</strong>`
+          `Lotto: <strong>${l.lot_number}</strong>`,
+          `Scadenza: <strong>${formatDateIT(l.expiration_date)}</strong>`
         ],
-        right: `${Number(m.quantity)||0}`
-      };
-    }));
-  } else {
-    sortedMoves.forEach(m=>{
-      const lot = lotById.get(Number(m.lot_id)) || null;
+        right: `${l.stock}`
+      })));
 
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${formatDateIT(m.created_at)}</td>
-        <td>${typeLabel(m.type)}</td>
-        <td>${lot?.product_name || '—'}</td>
-        <td>${lot?.lot_number || '—'}</td>
-        <td>${Number(m.quantity)||0}</td>
-      `;
-      movesTb.appendChild(tr);
-    });
+      renderMobileRows(tb30, exp30.slice(0,8).map(l => ({
+        title: l.product_name,
+        lines: [
+          `Lotto: <strong>${l.lot_number}</strong>`,
+          `Scadenza: <strong>${formatDateIT(l.expiration_date)}</strong>`
+        ],
+        right: `${l.stock}`
+      })));
+    } else {
+      tb7.innerHTML = exp7.slice(0,8).map(l => `
+        <tr>
+          <td>${l.product_name}</td>
+          <td>${l.lot_number}</td>
+          <td>${l.stock}</td>
+          <td>${formatDateIT(l.expiration_date)}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="4" class="muted">Nessuna</td></tr>`;
 
-    if(sortedMoves.length === 0){
-      movesTb.innerHTML = `<tr><td colspan="5" class="muted">Nessun movimento</td></tr>`;
+      tb30.innerHTML = exp30.slice(0,8).map(l => `
+        <tr>
+          <td>${l.product_name}</td>
+          <td>${l.lot_number}</td>
+          <td>${l.stock}</td>
+          <td>${formatDateIT(l.expiration_date)}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="4" class="muted">Nessuna</td></tr>`;
     }
   }
-}
 
-// ---- HOME: grafico Top vendite per prodotto (ultimi 30 giorni) ----
-const salesEl = document.getElementById('salesChart');
-if(salesEl){
-  const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
+  // ---- HOME: ultimi movimenti (10) ----
+  const movesTb = document.getElementById('last_moves_table');
+  if(movesTb){
+    movesTb.innerHTML = '';
 
-  const from = new Date(today);
-  from.setDate(from.getDate() - 30);
+    const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
 
-  const soldByProduct = new Map();
+    const sortedMoves = [...movements].sort((a,b)=>{
+      const da = new Date((a.created_at||'').replace(' ', 'T'));
+      const db = new Date((b.created_at||'').replace(' ', 'T'));
+      return db - da;
+    }).slice(0, 10);
 
-  movements.forEach(m=>{
-    if(m.type !== 'SALE') return;
+    const typeLabel = (t) => t === 'SALE' ? 'Vendita' : (t === 'PRODUCTION' ? 'Produzione' : t);
 
-    const d = new Date((m.created_at||'').replace(' ', 'T'));
-    if(isNaN(d) || d < from) return;
+    if(isMobile()){
+      renderMobileRows(movesTb, sortedMoves.map(m => {
+        const lot = lotById.get(Number(m.lot_id)) || null;
+        return {
+          title: lot?.product_name || '—',
+          lines: [
+            `${typeLabel(m.type)} • <strong>${formatDateIT(m.created_at)}</strong>`,
+            `Lotto: <strong>${lot?.lot_number || '—'}</strong>`
+          ],
+          right: `${Number(m.quantity)||0}`
+        };
+      }));
+    } else {
+      sortedMoves.forEach(m=>{
+        const lot = lotById.get(Number(m.lot_id)) || null;
 
-    const lot = lotById.get(Number(m.lot_id)) || null;
-    const productName = lot?.product_name || 'Sconosciuto';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${formatDateIT(m.created_at)}</td>
+          <td>${typeLabel(m.type)}</td>
+          <td>${lot?.product_name || '—'}</td>
+          <td>${lot?.lot_number || '—'}</td>
+          <td>${Number(m.quantity)||0}</td>
+        `;
+        movesTb.appendChild(tr);
+      });
 
-    const qty = Number(m.quantity)||0;
-    soldByProduct.set(productName, (soldByProduct.get(productName)||0) + qty);
-  });
-
-  const top = [...soldByProduct.entries()]
-    .sort((a,b)=> b[1]-a[1])
-    .slice(0, 10);
-
-  const labels = top.map(x=> x[0]);
-  const data = top.map(x=> x[1]);
-
-  if(salesChart) salesChart.destroy();
-
-  salesChart = new Chart(salesEl, {
-    type: 'bar',
-    data:{
-      labels,
-      datasets:[{ label:'Barattoli venduti', data }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      scales:{ y:{ beginAtZero:true } }
+      if(sortedMoves.length === 0){
+        movesTb.innerHTML = `<tr><td colspan="5" class="muted">Nessun movimento</td></tr>`;
+      }
     }
-  });
-}
+  }
+
+  // ---- HOME: grafico Top vendite per prodotto (ultimi 30 giorni) ----
+  const salesEl = document.getElementById('salesChart');
+  if(salesEl){
+    const lotById = new Map(lotsWithStock.map(l => [Number(l.lot_id), l]));
+
+    const from = new Date(today);
+    from.setDate(from.getDate() - 30);
+
+    const soldByProduct = new Map();
+
+    movements.forEach(m=>{
+      if(m.type !== 'SALE') return;
+
+      const d = new Date((m.created_at||'').replace(' ', 'T'));
+      if(isNaN(d) || d < from) return;
+
+      const lot = lotById.get(Number(m.lot_id)) || null;
+      const productName = lot?.product_name || 'Sconosciuto';
+
+      const qty = Number(m.quantity)||0;
+      soldByProduct.set(productName, (soldByProduct.get(productName)||0) + qty);
+    });
+
+    const top = [...soldByProduct.entries()]
+      .sort((a,b)=> b[1]-a[1])
+      .slice(0, 10);
+
+    const labels = top.map(x=> x[0]);
+    const data = top.map(x=> x[1]);
+
+    if(salesChart) salesChart.destroy();
+
+    salesChart = new Chart(salesEl, {
+      type: 'bar',
+      data:{
+        labels,
+        datasets:[{ label:'Barattoli venduti', data }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        scales:{ y:{ beginAtZero:true } }
+      }
+    });
+  }
 
   showExpiryToasts(expiringLots);
 }
@@ -397,18 +392,24 @@ async function loadProducts() {
   // ✅ NASCONDI ARCHIVIATI (paracadute)
   PRODUCTS = (PRODUCTS || []).filter(p => Number(p.is_active ?? 1) === 1);
 
-  const nameSelect = document.getElementById('product_name_select');
-  const formatSelect = document.getElementById('prod_select');
-  const info = document.getElementById('prod_info');
-
-  if(!nameSelect || !formatSelect) return;
-
   // 🔹 Nomi unici ordinati alfabeticamente
   const productNames = [...new Set(PRODUCTS.map(p => p.name))]
     .sort((a,b)=> a.localeCompare(b));
 
-  nameSelect.innerHTML = `<option value="">-- Seleziona prodotto --</option>`;
+  // ----- PRODUZIONE: clona select per evitare listener duplicati -----
+  const nameSelect0 = document.getElementById('product_name_select');
+  const formatSelect0 = document.getElementById('prod_select');
+  const info = document.getElementById('prod_info');
 
+  if(!nameSelect0 || !formatSelect0) return;
+
+  const nameSelect = nameSelect0.cloneNode(true);
+  nameSelect0.parentNode.replaceChild(nameSelect, nameSelect0);
+
+  const formatSelect = formatSelect0.cloneNode(true);
+  formatSelect0.parentNode.replaceChild(formatSelect, formatSelect0);
+
+  nameSelect.innerHTML = `<option value="">-- Seleziona prodotto --</option>`;
   productNames.forEach(name=>{
     const opt = document.createElement('option');
     opt.value = name;
@@ -416,10 +417,7 @@ async function loadProducts() {
     nameSelect.appendChild(opt);
   });
 
-  
-  // 🔹 Quando scelgo nome
   nameSelect.addEventListener('change', ()=>{
-
     const selectedName = nameSelect.value;
 
     formatSelect.innerHTML = `<option value="">-- Seleziona formato --</option>`;
@@ -442,29 +440,66 @@ async function loadProducts() {
     });
   });
 
-  // 🔹 Quando scelgo formato
-     formatSelect.addEventListener('change', async ()=>{
+  formatSelect.addEventListener('change', async ()=>{
+    const opt = formatSelect.options[formatSelect.selectedIndex];
 
-      const opt = formatSelect.options[formatSelect.selectedIndex];
+    if(!opt || !opt.value){
+      lockLotFields();
+      return;
+    }
 
-      if(!opt || !opt.value){
-        lockLotFields();
-        return;
-      }
+    document.getElementById('prod_ean').value = opt.dataset.ean || '';
+    document.getElementById('prod_info').textContent = `Unità per vassoio: ${opt.dataset.units}`;
 
-      // compila EAN
-      document.getElementById('prod_ean').value = opt.dataset.ean || '';
+    unlockLotFields();
+    await refreshTodayBatches();
+  });
 
-      // mostra info
-      document.getElementById('prod_info').textContent =
-        `Unità per vassoio: ${opt.dataset.units}`;
+  // ----- VENDITA: popola select nome + formato (se esistono in HTML) -----
+  (function initSaleSelectors(){
+    const ns0 = document.getElementById('sale_product_name_select');
+    const fs0 = document.getElementById('sale_prod_select');
+    if(!ns0 || !fs0) return;
 
-      // sblocca lotto e scadenza
-      unlockLotFields();
+    const ns = ns0.cloneNode(true);
+    ns0.parentNode.replaceChild(ns, ns0);
 
-      // aggiorna suggerimenti lotto filtrati
-      await refreshTodayBatches();
+    const fs = fs0.cloneNode(true);
+    fs0.parentNode.replaceChild(fs, fs0);
+
+    ns.innerHTML = `<option value="">-- Seleziona prodotto --</option>`;
+    productNames.forEach(name=>{
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      ns.appendChild(opt);
     });
+
+    ns.addEventListener('change', ()=>{
+      const selectedName = ns.value;
+      fs.innerHTML = `<option value="">-- Seleziona formato --</option>`;
+      if(!selectedName) return;
+
+      const filtered = PRODUCTS
+        .filter(p => p.name === selectedName)
+        .sort((a,b)=> extractWeight(a.format) - extractWeight(b.format));
+
+      filtered.forEach(p=>{
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.format} - ${p.units_per_tray} per vassoio`;
+        opt.dataset.ean = p.ean || '';
+        fs.appendChild(opt);
+      });
+    });
+
+    fs.addEventListener('change', ()=>{
+      const opt = fs.options[fs.selectedIndex];
+      if(!opt || !opt.value) return;
+      const barcode = document.getElementById('barcode');
+      if (barcode && opt.dataset.ean) barcode.value = opt.dataset.ean;
+    });
+  })();
 }
 
 // ---------- LOT MANAGEMENT ----------
@@ -574,22 +609,21 @@ async function refreshTodayBatches(){
     b.className = 'lot-chip';
     b.textContent = r.lot_number;
 
-   b.addEventListener('click', async ()=>{
+    b.addEventListener('click', async ()=>{
       const lotInput = document.getElementById('lot_number');
       if(!lotInput) return;
 
       lotInput.value = r.lot_number;
-
       await checkBatchWarning(r.lot_number);
     });
 
-        quick.appendChild(b);
-      });
+    quick.appendChild(b);
+  });
 
-      if(filtered.length === 0){
-        quick.innerHTML = `<span style="color:#777;">Nessun lotto recente per questo tipo di pesce.</span>`;
-      }
-    }
+  if(filtered.length === 0){
+    quick.innerHTML = `<span style="color:#777;">Nessun lotto recente per questo tipo di pesce.</span>`;
+  }
+}
 
 document.getElementById('lot_number')?.addEventListener('focus', refreshTodayBatches);
 
@@ -633,7 +667,6 @@ document.getElementById('btn_production')?.addEventListener('click', async ()=>{
         msg.textContent = 'Seleziona prima prodotto e formato.';
         return;
       }
-
     }
 
     const data = await fetchJSON('api_production.php',{
@@ -669,56 +702,436 @@ document.getElementById('btn_production')?.addEventListener('click', async ()=>{
   }
 });
 
-// ---------- VENDITA ----------
-document.getElementById('btn_sale')?.addEventListener('click', async ()=>{
-  const msg = document.getElementById('sale_message');
-  msg.className='message';
-  msg.textContent='';
 
-  const code = document.getElementById('barcode').value.trim();
-  const quantity = parseInt(document.getElementById('sale_qty').value,10)||1;
+// ---------- VENDITA V2 UI COMPLETA (dropdown prodotto+formato + EAN opzionale) ----------
+const SaleUI = (() => {
+  let currentProduct = null;          // {id, name, ean...}
+  let suggestedLots = [];             // [{lot_id, lot_number, expiration_date, stock...}]
+  let selectedLots = new Map();       // lot_id -> qty
 
-  if(!code){
-    msg.classList.add('error');
-    msg.textContent='Inserisci EAN.';
-    return;
-  }
+  const el = (id) => document.getElementById(id);
 
-  try{
-    const product = await fetchProductByEAN(code);
-    if(product.error){
-      msg.classList.add('error');
-      msg.textContent = product.error;
+  const getQty = () => parseInt(el('sale_qty')?.value, 10) || 1;
+  const isManual = () => !!el('sale_manual_toggle')?.checked;
+
+  const resetLotsUI = () => {
+    suggestedLots = [];
+    selectedLots.clear();
+    if (el('sale_plan_hint')) el('sale_plan_hint').textContent = '';
+    if (el('sale_manual_status')) el('sale_manual_status').textContent = '';
+    if (el('sale_lot_chips')) el('sale_lot_chips').innerHTML = '';
+    if (el('sale_selected_chips')) el('sale_selected_chips').innerHTML = '';
+  };
+
+  const setMsg = (type, text) => {
+    const msg = el('sale_message');
+    if (!msg) return;
+    msg.className = 'message';
+    msg.textContent = '';
+    msg.classList.add(type);
+    msg.textContent = text;
+  };
+
+  const planToText = (plan) =>
+    (plan || []).map(x => `${x.lot_number ?? ('lot#'+x.lot_id)}:${x.qty ?? x.taken}`).join(', ');
+
+  const selectedSum = () => {
+    let s = 0;
+    selectedLots.forEach(v => s += Number(v || 0));
+    return s;
+  };
+
+  const remainingNeeded = () => Math.max(0, getQty() - selectedSum());
+
+  const renderSuggestedChips = () => {
+    const box = el('sale_lot_chips');
+    if (!box) return;
+    box.innerHTML = '';
+
+    if (!suggestedLots.length) {
+      const span = document.createElement('span');
+      span.className = 'muted';
+      span.textContent = 'Nessun lotto disponibile.';
+      box.appendChild(span);
       return;
     }
 
-    const data = await fetchJSON('api_sale.php',{
+    suggestedLots.forEach(l => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-secondary';
+      btn.style.padding = '6px 10px';
+      btn.style.borderRadius = '999px';
+
+      const exp = l.expiration_date ? ` | scad ${l.expiration_date}` : '';
+      btn.textContent = `${l.lot_number ?? ('lot#'+l.lot_id)} (${l.stock})${exp}`;
+
+      btn.onclick = () => {
+        const need = remainingNeeded();
+        if (need <= 0) return;
+
+        const already = Number(selectedLots.get(l.lot_id) || 0);
+        const add = Math.min(Number(l.stock || 0) - already, need);
+
+        if (add <= 0) return;
+        selectedLots.set(l.lot_id, already + add);
+        renderSelectedChips();
+        renderManualStatus();
+      };
+
+      box.appendChild(btn);
+    });
+  };
+
+  const renderSelectedChips = () => {
+    const box = el('sale_selected_chips');
+    if (!box) return;
+    box.innerHTML = '';
+
+    if (selectedLots.size === 0) {
+      const span = document.createElement('span');
+      span.className = 'muted';
+      span.textContent = 'Nessun lotto selezionato.';
+      box.appendChild(span);
+      return;
+    }
+
+    selectedLots.forEach((qty, lot_id) => {
+      const lot = suggestedLots.find(x => Number(x.lot_id) === Number(lot_id));
+      const name = lot?.lot_number ?? ('lot#' + lot_id);
+      const maxStock = Number(lot?.stock ?? qty);
+
+      const chip = document.createElement('div');
+      chip.style.display = 'flex';
+      chip.style.alignItems = 'center';
+      chip.style.gap = '6px';
+      chip.style.padding = '6px 10px';
+      chip.style.borderRadius = '999px';
+      chip.style.border = '1px solid rgba(255,255,255,0.15)';
+
+      const label = document.createElement('span');
+      label.textContent = `${name}: ${qty}`;
+
+      const minus = document.createElement('button');
+      minus.type = 'button';
+      minus.textContent = '−';
+      minus.className = 'btn-secondary';
+      minus.style.padding = '2px 8px';
+      minus.style.borderRadius = '999px';
+      minus.onclick = () => {
+        const v = Number(selectedLots.get(lot_id) || 0);
+        if (v <= 1) selectedLots.delete(lot_id);
+        else selectedLots.set(lot_id, v - 1);
+        renderSelectedChips();
+        renderManualStatus();
+      };
+
+      const plus = document.createElement('button');
+      plus.type = 'button';
+      plus.textContent = '+';
+      plus.className = 'btn-secondary';
+      plus.style.padding = '2px 8px';
+      plus.style.borderRadius = '999px';
+      plus.onclick = () => {
+        const need = remainingNeeded();
+        if (need <= 0) return;
+        const v = Number(selectedLots.get(lot_id) || 0);
+        if (v >= maxStock) return;
+        selectedLots.set(lot_id, v + 1);
+        renderSelectedChips();
+        renderManualStatus();
+      };
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.textContent = '×';
+      del.className = 'btn-secondary';
+      del.style.padding = '2px 8px';
+      del.style.borderRadius = '999px';
+      del.onclick = () => {
+        selectedLots.delete(lot_id);
+        renderSelectedChips();
+        renderManualStatus();
+      };
+
+      chip.appendChild(label);
+      chip.appendChild(minus);
+      chip.appendChild(plus);
+      chip.appendChild(del);
+      box.appendChild(chip);
+    });
+  };
+
+  const renderManualStatus = () => {
+    const st = el('sale_manual_status');
+    if (!st) return;
+
+    const need = remainingNeeded();
+    if (need === 0) st.textContent = 'OK: quantità completa. Puoi confermare.';
+    else st.textContent = `Mancano ${need}. Seleziona altri lotti (chip).`;
+  };
+
+  const fetchSuggestedLots = async (product_id) => {
+    const quantity = getQty();
+    const res = await fetchJSON('api_sale_preview_v2.php', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({product_id:product.id,quantity})
+      body: JSON.stringify({ mode:'auto', product_id, quantity })
     });
 
-    console.log("api_sale response:", data);
+    suggestedLots = res.suggested_lots || [];
+    renderSuggestedChips();
+  };
 
-    if(data.error){
-  msg.classList.add('error');
-  msg.textContent = data.detail ? `${data.error}: ${data.detail}` : data.error;
-  return;
-}
+  const buildManualLotsPayload = () => {
+    const lots = [];
+    selectedLots.forEach((qty, lot_id) => {
+      lots.push({ lot_id: Number(lot_id), qty: Number(qty) });
+    });
+    return lots;
+  };
 
-    msg.classList.add('success');
-    msg.textContent = `Venduti ${data.sold} barattoli`;
+  const resolveProductForSale = async () => {
+    // Priorità: dropdown formato vendita -> product_id
+    const fs = document.getElementById('sale_prod_select');
+    const selectedProductId = Number(fs?.value || 0);
 
-    document.getElementById('barcode').value='';
-    document.getElementById('sale_qty').value=1;
+    if (selectedProductId > 0) {
+      const p = (PRODUCTS || []).find(x => Number(x.id) === selectedProductId) || null;
+      if (!p) return { error: 'Prodotto selezionato non valido' };
+      return p;
+    }
 
+    // Fallback: EAN
+    const code = el('barcode')?.value.trim() || '';
+    if (!code) return { error: 'Seleziona prodotto/formato o inserisci EAN' };
+
+    const p = await fetchProductByEAN(code);
+    return p;
+  };
+
+  const doAuto = async () => {
+    const quantity = getQty();
+
+    const preview = await fetchJSON('api_sale_preview_v2.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mode:'auto', product_id: currentProduct.id, quantity })
+    });
+
+    if (preview.success === false) {
+      setMsg('error', preview.error || 'Stock insufficiente');
+      return;
+    }
+
+    const planText = planToText(preview.plan);
+    if (el('sale_plan_hint')) el('sale_plan_hint').textContent = `Piano: ${planText}`;
+
+    if (!confirm(`Confermi vendita di ${quantity}? Verrà scalato: ${planText}`)) return;
+
+    const commit = await fetchJSON('api_sale_commit_v2.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mode:'auto', product_id: currentProduct.id, quantity })
+    });
+
+    if (commit.success === false || commit.error) {
+      setMsg('error', commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore'));
+      return;
+    }
+
+    setMsg('success', `Venduti ${commit.sold} barattoli`);
+    el('barcode').value = '';
+    el('sale_qty').value = 1;
+    resetLotsUI();
     await loadHomeDashboard();
     await loadProductsTable();
+  };
 
-  }catch(err){
-    console.error(err);
-  }
-});
+  const doManual = async () => {
+    const quantity = getQty();
+
+    if (selectedSum() !== quantity) {
+      renderManualStatus();
+      setMsg('error', `In manuale devi coprire tutta la quantità (${quantity}).`);
+      return;
+    }
+
+    const lots = buildManualLotsPayload();
+
+    const preview = await fetchJSON('api_sale_preview_v2.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mode:'manual', product_id: currentProduct.id, quantity, lots })
+    });
+
+    if (preview.success === false) {
+      if (preview.code === 'INSUFFICIENT_STOCK_LOT') {
+        suggestedLots = preview.suggested_lots || suggestedLots;
+        renderSuggestedChips();
+        renderManualStatus();
+        setMsg('error', `Lotto insufficiente. Aggiungi altri lotti: manca ${preview.remaining_needed}.`);
+        return;
+      }
+      setMsg('error', preview.error || 'Errore');
+      return;
+    }
+
+    const planText = lots.map(x => `lot#${x.lot_id}:${x.qty}`).join(', ');
+    if (el('sale_plan_hint')) el('sale_plan_hint').textContent = `Manuale: ${planText}`;
+
+    if (!confirm(`Confermi vendita manuale di ${quantity}? (${planText})`)) return;
+
+    const commit = await fetchJSON('api_sale_commit_v2.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mode:'manual', product_id: currentProduct.id, quantity, lots })
+    });
+
+    if (commit.success === false || commit.error) {
+      setMsg('error', commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore'));
+      return;
+    }
+
+    setMsg('success', `Venduti ${commit.sold} barattoli (manuale)`);
+    el('barcode').value = '';
+    el('sale_qty').value = 1;
+    resetLotsUI();
+    await loadHomeDashboard();
+    await loadProductsTable();
+  };
+
+  const init = () => {
+    const btn = el('btn_sale');
+    const toggle = el('sale_manual_toggle');
+    const manualBox = el('sale_manual_box');
+    const saleFormat = el('sale_prod_select');
+    const saleName = el('sale_product_name_select');
+
+    // Toggle manuale
+    if (toggle) {
+      toggle.onchange = async (e) => {
+        if (manualBox) manualBox.style.display = e.target.checked ? 'block' : 'none';
+        resetLotsUI();
+
+        if (currentProduct?.id && e.target.checked) {
+          await fetchSuggestedLots(currentProduct.id);
+          renderSelectedChips();
+          renderManualStatus();
+        }
+      };
+    }
+
+    // Cambio formato vendita -> aggiorna currentProduct + reset lotti
+    if (saleFormat) {
+      saleFormat.addEventListener('change', async () => {
+        const pid = Number(saleFormat.value || 0);
+        if (!pid) {
+          currentProduct = null;
+          resetLotsUI();
+          return;
+        }
+
+        const p = (PRODUCTS || []).find(x => Number(x.id) === pid) || null;
+        currentProduct = p;
+        resetLotsUI();
+
+        // compila barcode se presente
+        const opt = saleFormat.options[saleFormat.selectedIndex];
+        if (opt?.dataset?.ean && el('barcode')) el('barcode').value = opt.dataset.ean;
+
+        // se manuale, ricarica i lotti
+        if (isManual() && currentProduct?.id) {
+          if (manualBox) manualBox.style.display = 'block';
+          await fetchSuggestedLots(currentProduct.id);
+          renderSelectedChips();
+          renderManualStatus();
+        }
+      });
+    }
+
+    // Listener barcode: auto-compila select vendita (QUESTO è il posto giusto)
+    el('barcode')?.addEventListener('change', async () => {
+      const code = el('barcode').value.trim();
+      if (!code) return;
+
+      const p = await fetchProductByEAN(code);
+      if (p?.error) return;
+
+      currentProduct = p;
+
+      // auto set nome + formato
+      if (saleName) {
+        saleName.value = p.name;
+        saleName.dispatchEvent(new Event('change'));
+      }
+      if (saleFormat) {
+        saleFormat.value = String(p.id);
+        saleFormat.dispatchEvent(new Event('change'));
+      }
+
+      // se manuale, carica lotti
+      if (isManual() && currentProduct?.id) {
+        if (manualBox) manualBox.style.display = 'block';
+        await fetchSuggestedLots(currentProduct.id);
+        renderSelectedChips();
+        renderManualStatus();
+      }
+    });
+
+    if (!btn) return;
+
+    // handler unico
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        if (el('sale_message')) { el('sale_message').className = 'message'; el('sale_message').textContent = ''; }
+
+        const quantity = getQty();
+        if (quantity <= 0) { setMsg('error', 'Quantità non valida.'); return; }
+
+        // prodotto da dropdown (priorità) oppure EAN
+        const product = await resolveProductForSale();
+        if (product?.error) { setMsg('error', product.error); return; }
+        if (product?.success === false && product?.error) { setMsg('error', product.error); return; }
+        if (product?.error) { setMsg('error', product.error); return; }
+
+        if (product?.success === false) {
+          setMsg('error', product.error || 'Prodotto non trovato');
+          return;
+        }
+
+        currentProduct = product;
+
+        if (isManual()) {
+          if (manualBox) manualBox.style.display = 'block';
+          // se non ho ancora lotti caricati, caricali
+          if (!suggestedLots.length) {
+            await fetchSuggestedLots(currentProduct.id);
+            renderSelectedChips();
+          }
+          renderManualStatus();
+          await doManual();
+        } else {
+          await doAuto();
+        }
+      } catch (err) {
+        console.error(err);
+        setMsg('error', 'Errore imprevisto');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    // se cambia qty in manuale, aggiorna stato "mancano X"
+    el('sale_qty')?.addEventListener('input', () => {
+      if (isManual()) renderManualStatus();
+    });
+  };
+
+  return { init };
+})();
+
 
 // ---------- PRODOTTI TAB ----------
 async function loadProductsTable(){
@@ -785,18 +1198,19 @@ async function loadProductsTable(){
     const editModes = card.querySelectorAll('.edit-mode');
 
     // --- ATTIVA MODIFICA ---
-   editBtn.addEventListener('click', ()=>{
-  card.classList.add('editing');
-  viewModes.forEach(el=>el.classList.add('hidden'));
-  editModes.forEach(el=>el.classList.remove('hidden'));
-});
+    editBtn.addEventListener('click', ()=>{
+      card.classList.add('editing');
+      viewModes.forEach(el=>el.classList.add('hidden'));
+      editModes.forEach(el=>el.classList.remove('hidden'));
+    });
 
     // --- ANNULLA ---
-  cancelBtn.addEventListener('click', ()=>{
-  card.classList.remove('editing');
-  editModes.forEach(el=>el.classList.add('hidden'));
-  viewModes.forEach(el=>el.classList.remove('hidden'));
-});
+    cancelBtn.addEventListener('click', ()=>{
+      card.classList.remove('editing');
+      editModes.forEach(el=>el.classList.add('hidden'));
+      viewModes.forEach(el=>el.classList.remove('hidden'));
+    });
+
     // --- SALVA ---
     saveBtn.addEventListener('click', async ()=>{
       const newName = card.querySelector('.edit-name').value.trim();
@@ -824,51 +1238,47 @@ async function loadProductsTable(){
         return;
       }
 
-    card.classList.remove('editing');
-    card.classList.add('saved');
+      card.classList.remove('editing');
+      card.classList.add('saved');
 
-    setTimeout(()=>{
-      card.classList.remove('saved');
-    },600);
+      setTimeout(()=>{
+        card.classList.remove('saved');
+      },600);
 
-    await loadProducts();
-    await loadProductsTable();
-
+      await loadProducts();
+      await loadProductsTable();
     });
 
-   // --- DELETE ---
-deleteBtn.addEventListener('click', async () => {
-  if (!confirm("Eliminare il prodotto?")) return;
+    // --- DELETE ---
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm("Eliminare il prodotto?")) return;
 
-  const res = await fetchJSON('api_delete_product.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: p.id })
-  });
+      const res = await fetchJSON('api_delete_product.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id })
+      });
 
-  // Gestione errori (robusta)
-  if (res?.success === false) {
-    alert(res.error || 'Errore eliminazione');
-    return;
-  }
-  if (res?.error) { // fallback se qualche endpoint usa ancora error senza success
-    alert(res.error);
-    return;
-  }
+      if (res?.success === false) {
+        alert(res.error || 'Errore eliminazione');
+        return;
+      }
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
 
-  // Messaggio chiaro
-  if (res?.mode === 'soft') {
-    alert('Prodotto archiviato! (aveva lotti/movimenti).');
-  } else if (res?.mode === 'hard') {
-    alert('Prodotto eliminato.');
-  } else {
-    alert('Operazione completata.');
-  }
+      if (res?.mode === 'soft') {
+        alert('Prodotto archiviato! (aveva lotti/movimenti).');
+      } else if (res?.mode === 'hard') {
+        alert('Prodotto eliminato.');
+      } else {
+        alert('Operazione completata.');
+      }
 
-  // Refresh UI
-  await loadProducts();
-  await loadProductsTable();
-});
+      await loadProducts();
+      await loadProductsTable();
+    });
 
     container.appendChild(card);
   });
@@ -911,115 +1321,114 @@ async function deleteProduct(id){
 // ---------- INIT ----------
 window.addEventListener('DOMContentLoaded', async ()=>{
 
- // ---------- TABS STABILI ----------
-document.querySelectorAll('.tab-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
+  // ---------- TABS STABILI ----------
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const targetId = btn.dataset.target;
+      const target = document.getElementById(targetId);
+      if(!target) return;
 
-    const targetId = btn.dataset.target;
-    const target = document.getElementById(targetId);
-    if(!target) return;
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
 
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
+      document.querySelectorAll('.tab').forEach(tab=>{
+        tab.classList.remove('active');
+      });
 
-    document.querySelectorAll('.tab').forEach(tab=>{
-      tab.classList.remove('active');
+      target.classList.add('active');
     });
-
-    target.classList.add('active');
-
   });
-});
 
   lockLotFields();
+
   await loadProducts();
+  // init SaleUI DOPO loadProducts (così i select vendita esistono e sono popolati)
+  SaleUI.init();
+
   await loadHomeDashboard();
   await loadProductsTable();
   await refreshTodayBatches();
 
-  
-
   // ---------- CREA PRODOTTO ----------
-document.getElementById('btn_add_product')?.addEventListener('click', async ()=>{
+  document.getElementById('btn_add_product')?.addEventListener('click', async ()=>{
 
-  const msg = document.getElementById('product_message');
-  msg.className = 'message';
-  msg.textContent = '';
+    const msg = document.getElementById('product_message');
+    msg.className = 'message';
+    msg.textContent = '';
 
-  const name = document.getElementById('new_product_name').value.trim();
-  const format = document.getElementById('new_product_format').value.trim();
-  const fish_type = document.getElementById('new_product_fish').value.trim().toUpperCase();
-  const ean = document.getElementById('new_product_ean').value.trim();
-  const units = parseInt(document.getElementById('new_product_units').value, 10);
-  const imageInput = document.getElementById('new_product_image');
+    const name = document.getElementById('new_product_name').value.trim();
+    const format = document.getElementById('new_product_format').value.trim();
+    const fish_type = document.getElementById('new_product_fish').value.trim().toUpperCase();
+    const ean = document.getElementById('new_product_ean').value.trim();
+    const units = parseInt(document.getElementById('new_product_units').value, 10);
+    const imageInput = document.getElementById('new_product_image');
 
-  if(!name || !format || !fish_type || !ean || !units || units <= 0){
-    msg.classList.add('error');
-    msg.textContent = 'Compila tutti i campi obbligatori.';
-    return;
-  }
-
-  try{
-
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('format', format);
-    formData.append('fish_type', fish_type);
-    formData.append('ean', ean);
-    formData.append('units_per_tray', units);
-
-    if(imageInput.files.length > 0){
-      formData.append('image', imageInput.files[0]);
-    }
-
-    const res = await fetch('api_create_product.php', {
-      method:'POST',
-      body: formData
-    });
-
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); }
-    catch(e){
-      console.error(text);
+    if(!name || !format || !fish_type || !ean || !units || units <= 0){
       msg.classList.add('error');
-      msg.textContent = 'Errore server (vedi console).';
+      msg.textContent = 'Compila tutti i campi obbligatori.';
       return;
     }
 
-    if(data.error){
+    try{
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('format', format);
+      formData.append('fish_type', fish_type);
+      formData.append('ean', ean);
+      formData.append('units_per_tray', units);
+
+      if(imageInput.files.length > 0){
+        formData.append('image', imageInput.files[0]);
+      }
+
+      const res = await fetch('api_create_product.php', {
+        method:'POST',
+        body: formData
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch(e){
+        console.error(text);
+        msg.classList.add('error');
+        msg.textContent = 'Errore server (vedi console).';
+        return;
+      }
+
+      if(data.error){
+        msg.classList.add('error');
+        msg.textContent = data.error;
+        return;
+      }
+
+      msg.classList.add('success');
+      msg.textContent = 'Prodotto creato con successo.';
+
+      // reset campi
+      document.getElementById('new_product_name').value = '';
+      document.getElementById('new_product_format').value = '';
+      document.getElementById('new_product_ean').value = '';
+      document.getElementById('new_product_units').value = '';
+      imageInput.value = '';
+
+      await loadProducts();
+      await loadProductsTable();
+
+    }catch(err){
+      console.error(err);
       msg.classList.add('error');
-      msg.textContent = data.error;
-      return;
+      msg.textContent = 'Errore creazione prodotto.';
     }
-
-    msg.classList.add('success');
-    msg.textContent = 'Prodotto creato con successo.';
-
-    // reset campi
-    document.getElementById('new_product_name').value = '';
-    document.getElementById('new_product_format').value = '';
-    document.getElementById('new_product_ean').value = '';
-    document.getElementById('new_product_units').value = '';
-    imageInput.value = '';
-
-    await loadProducts();
-    await loadProductsTable();
-
-  }catch(err){
-    console.error(err);
-    msg.classList.add('error');
-    msg.textContent = 'Errore creazione prodotto.';
-  }
-
-});
-
+  });
 
   const lotInput = document.getElementById('lot_number');
   const formatSelect = document.getElementById('prod_select');
-lotInput.addEventListener('input', async (e)=>{
-  await checkBatchWarning(e.target.value.trim());
-});
+
+  lotInput.addEventListener('input', async (e)=>{
+    await checkBatchWarning(e.target.value.trim());
+  });
+
   if(lotInput){
     lotInput.disabled = true;
     lotInput.style.background = '#eee';
@@ -1038,51 +1447,49 @@ lotInput.addEventListener('input', async (e)=>{
     });
   }
 
- const eanInput = document.getElementById('prod_ean');
+  const eanInput = document.getElementById('prod_ean');
+  if(eanInput){
 
-if(eanInput){
+    let timeout = null;
 
-  let timeout = null;
+    eanInput.addEventListener('input', (e)=>{
 
-  eanInput.addEventListener('input', (e)=>{
+      clearTimeout(timeout);
 
-    clearTimeout(timeout);
+      timeout = setTimeout(async ()=>{
 
-    timeout = setTimeout(async ()=>{
+        const code = e.target.value.trim();
 
-      const code = e.target.value.trim();
+        if(!code){
+          lockLotFields();
+          return;
+        }
 
-      if(!code){
-        lockLotFields();
-        return;
-      }
+        const product = await fetchProductByEAN(code);
 
-      const product = await fetchProductByEAN(code);
+        if(product.error){
+          lockLotFields();
+          return;
+        }
 
-      if(product.error){
-        lockLotFields();
-        return;
-      }
+        const nameSelect = document.getElementById('product_name_select');
+        const formatSelect = document.getElementById('prod_select');
 
-      const nameSelect = document.getElementById('product_name_select');
-      const formatSelect = document.getElementById('prod_select');
+        // 1️⃣ seleziona nome prodotto
+        nameSelect.value = product.name;
+        nameSelect.dispatchEvent(new Event('change'));
 
-      // 1️⃣ seleziona nome prodotto
-      nameSelect.value = product.name;
-      nameSelect.dispatchEvent(new Event('change'));
+        // 2️⃣ seleziona formato
+        formatSelect.value = product.id;
+        formatSelect.dispatchEvent(new Event('change'));
 
-      // 2️⃣ seleziona formato
-      formatSelect.value = product.id;
-      formatSelect.dispatchEvent(new Event('change'));
+        // sblocca
+        unlockLotFields();
 
-      // sblocca
-      unlockLotFields();
+        await refreshTodayBatches();
 
-      await refreshTodayBatches();
+      }, 300);
 
-    }, 300);
-
-  });
-}
+    });
+  }
 });
-

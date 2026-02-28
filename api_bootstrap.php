@@ -4,6 +4,8 @@
 require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 // ===== ERROR HANDLING =====
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);

@@ -303,31 +303,75 @@
         </section>
 
         <!-- VENDITA -->
-        <section id="tab_sale" class="tab">
-          <div class="section-head">
-            <h2 class="h2">Vendita</h2>
-            <div class="muted">Scarico rapido stock</div>
-          </div>
+<section id="tab_sale" class="tab">
+  <div class="section-head">
+    <h2 class="h2">Vendita</h2>
+    <div class="muted">Scarico rapido stock</div>
+  </div>
 
-          <div class="card">
-            <div class="form-grid">
-              <div class="form-group">
-                <label>EAN Prodotto:</label>
-                <input type="text" id="barcode" placeholder="Scansiona o inserisci EAN">
-              </div>
+  <div class="card">
+    <div class="form-grid">
+  <div class="form-group">
+    <label>Prodotto (nome):</label>
+    <select id="sale_product_name_select">
+      <option value="">-- Seleziona prodotto --</option>
+    </select>
+  </div>
 
-              <div class="form-group">
-                <label>Quantità (barattoli):</label>
-                <input type="number" id="sale_qty" value="1" min="1">
-              </div>
-            </div>
+  <div class="form-group">
+    <label>Formato:</label>
+    <select id="sale_prod_select">
+      <option value="">-- Seleziona formato --</option>
+    </select>
+  </div>
+</div>
 
-            <div class="row">
-              <button id="btn_sale" type="button" class="btn-primary">Registra Vendita</button>
-              <div id="sale_message" class="message"></div>
-            </div>
-          </div>
-        </section>
+<div class="form-grid" style="margin-top:10px;">
+  <div class="form-group">
+    <label>EAN Prodotto (opzionale):</label>
+    <input type="text" id="barcode" placeholder="Scansiona o inserisci EAN">
+    <div class="muted">Se inserisci EAN, selezione prodotto/formato si aggiorna.</div>
+  </div>
+
+  <div class="form-group">
+    <label>Quantità (barattoli):</label>
+    <input type="number" id="sale_qty" value="1" min="1">
+  </div>
+</div>
+
+<div class="row" style="gap:12px; align-items:center; margin-top:10px;">
+  <label style="display:flex; gap:8px; align-items:center; cursor:pointer;">
+    <input type="checkbox" id="sale_manual_toggle">
+    <span>Selezione lotto manuale</span>
+  </label>
+  <span class="muted" id="sale_plan_hint"></span>
+</div>
+
+<!-- MANUALE -->
+<div id="sale_manual_box" style="display:none; margin-top:10px;">
+  <div class="muted" style="margin-bottom:6px;">
+    Seleziona uno o più lotti. Completa la quantità richiesta.
+  </div>
+
+  <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+    <div class="muted">Lotti disponibili:</div>
+    <div id="sale_lot_chips" class="row" style="gap:8px; flex-wrap:wrap;"></div>
+  </div>
+
+  <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+    <div class="muted">Selezionati:</div>
+    <div id="sale_selected_chips" class="row" style="gap:8px; flex-wrap:wrap;"></div>
+  </div>
+
+  <div id="sale_manual_status" class="muted"></div>
+</div>
+
+    <div class="row" style="margin-top:10px;">
+      <button id="btn_sale" type="button" class="btn-primary">Registra Vendita</button>
+      <div id="sale_message" class="message"></div>
+    </div>
+  </div>
+</section>
 
         <!-- STOCK -->
         <section id="tab_stock" class="tab">
