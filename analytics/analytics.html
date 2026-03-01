@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Analisi — Warehouse Manager</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="./analytics.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-title">Gestionale</div>
+        <div class="brand-sub">Warehouse Manager</div>
+      </div>
+
+      <nav class="sidebar-nav" style="margin-top:12px;">
+        <a class="tab-btn" href="../index.html" style="display:block; width:100%; text-align:left; text-decoration:none;">← Torna alla Dashboard</a>
+      </nav>
+
+      <div style="margin-top:16px; padding: 0 12px;">
+        <div style="font-size:12px; opacity:.8; margin-bottom:8px;">Filtri</div>
+
+        <label class="field">
+          <span>Periodo</span>
+          <select id="range_preset">
+            <option value="7d">Ultimi 7 giorni</option>
+            <option value="30d" selected>Ultimi 30 giorni</option>
+            <option value="month">Questo mese</option>
+            <option value="today">Oggi</option>
+            <option value="custom">Personalizzato</option>
+          </select>
+        </label>
+
+        <div class="row" style="gap:8px;">
+          <label class="field" style="flex:1;">
+            <span>Da</span>
+            <input id="start_date" type="date" />
+          </label>
+          <label class="field" style="flex:1;">
+            <span>A</span>
+            <input id="end_date" type="date" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Tipo pesce</span>
+          <input id="fish_type" type="text" placeholder="es. TONNO (opzionale)" />
+        </label>
+
+        <label class="field">
+          <span>Prodotto (ID)</span>
+          <input id="product_id" type="number" min="1" placeholder="opzionale" />
+        </label>
+
+        <label class="field">
+          <span>Unità</span>
+          <select id="unit_mode">
+            <option value="units" selected>Unità</option>
+            <option value="trays">Vassoi</option>
+          </select>
+        </label>
+
+        <button id="btn_apply" class="primary" type="button" style="width:100%; margin-top:10px;">Applica</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="h1">Analisi</div>
+          <div class="subtle" id="subtitle">KPI e grafici dal magazzino</div>
+        </div>
+      </header>
+
+      <section class="grid" style="margin-top:14px;">
+        <div class="card">
+          <div class="card-title">Venduto (periodo)</div>
+          <div class="card-value" id="kpi_sold">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Prodotto (periodo)</div>
+          <div class="card-value" id="kpi_produced">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Rettifiche OUT (periodo)</div>
+          <div class="card-value" id="kpi_adjust_out">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Saldo netto (periodo)</div>
+          <div class="card-value" id="kpi_net">—</div>
+        </div>
+      </section>
+
+      <section class="grid" style="margin-top:14px;">
+        <div class="card" style="grid-column: span 2;">
+          <div class="card-title">Produzione vs Vendita (giornaliero)</div>
+          <canvas id="chart_trends" height="120"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">Top 10 prodotti venduti</div>
+          <canvas id="chart_top" height="220"></canvas>
+        </div>
+      </section>
+
+      <section class="grid" style="margin-top:14px;">
+        <div class="card">
+          <div class="card-title">Rischio scadenze (stock attuale)</div>
+          <div class="row" style="gap:10px; margin: 10px 0 6px;">
+            <div class="pill">≤3gg: <b id="exp_3">—</b></div>
+            <div class="pill">≤7gg: <b id="exp_7">—</b></div>
+            <div class="pill">Scaduto: <b id="exp_0">—</b></div>
+          </div>
+          <div class="table-wrap" style="max-height: 340px; overflow:auto;">
+            <table class="table" id="exp_table">
+              <thead>
+                <tr>
+                  <th>Prodotto</th>
+                  <th>Lotto</th>
+                  <th>Scadenza</th>
+                  <th>Stock</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Rettifiche OUT (motivi)</div>
+          <canvas id="chart_adjust" height="220"></canvas>
+          <div class="subtle" style="margin-top:8px;">Tip: se vedi MODIFICA_FORZATA alta, c’è un problema di processo.</div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:14px;">
+        <div class="card-title">Note</div>
+        <div class="subtle">
+          Questa pagina è isolata dal resto del gestionale: non modifica né dipende dalle funzioni vecchie (zero rischio bug).
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./analytics.js"></script>
+</body>
+</html>

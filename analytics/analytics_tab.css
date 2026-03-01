@@ -1,0 +1,89 @@
+/* Analytics tab: scoped styles only */
+#tab_analytics .analytics-grid{
+  display:grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--gap);
+}
+
+#tab_analytics .analytics-grid > .span-12{ grid-column: span 12; }
+#tab_analytics .analytics-grid > .span-8{ grid-column: span 8; }
+#tab_analytics .analytics-grid > .span-6{ grid-column: span 6; }
+#tab_analytics .analytics-grid > .span-4{ grid-column: span 4; }
+
+#tab_analytics .chart-box{
+  height: 320px;
+}
+
+#tab_analytics .chart-box.tall{
+  height: 380px;
+}
+
+#tab_analytics .kpi p{
+  font-size: 28px;
+  margin: 6px 0 0;
+  font-weight: 800;
+}
+
+#tab_analytics .analytics-toolbar{
+  /* layout più pulito e coerente con il resto del gestionale */
+  display:flex;
+  align-items:flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+
+#tab_analytics .analytics-toolbar .field{
+  flex: 0 0 auto;
+  width: 240px;
+  max-width: 100%;
+}
+
+#tab_analytics .analytics-toolbar .field.narrow{
+  width: 170px;
+}
+
+#tab_analytics .analytics-toolbar .field .label{
+  display:block;
+  margin-bottom: 6px;
+}
+
+#tab_analytics .analytics-toolbar .field .input{
+  width: 100%;
+}
+
+#tab_analytics .analytics-actions{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  padding-bottom: 2px;
+}
+
+#tab_analytics #analytics_error{
+  display:none;
+  border: 1px solid rgba(255,0,0,.25);
+  background: rgba(255,0,0,.06);
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+#tab_analytics .is-loading{
+  opacity: .75;
+  pointer-events:none;
+}
+
+@media (max-width: 980px){
+  #tab_analytics .analytics-toolbar .field{ width: 100%; }
+  #tab_analytics .analytics-toolbar .field.narrow{ width: 48%; }
+  #tab_analytics .analytics-actions{ width: 100%; }
+
+  #tab_analytics .analytics-grid > .span-8{ grid-column: span 12; }
+  #tab_analytics .analytics-grid > .span-6{ grid-column: span 12; }
+  #tab_analytics .analytics-grid > .span-4{ grid-column: span 6; }
+}
+
+@media (max-width: 640px){
+  #tab_analytics .analytics-grid > .span-4{ grid-column: span 12; }
+  #tab_analytics .chart-box{ height: 280px; }
+  #tab_analytics .kpi p{ font-size: 24px; }
+}

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gestionale Magazzino</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="analytics/analytics_tab.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -29,6 +30,7 @@
         <button class="tab-btn" data-target="tab_sale" type="button">Vendita</button>
         <button class="tab-btn" data-target="tab_adjust" type="button">Rettifica</button>
         <button class="tab-btn" data-target="tab_inventory">Magazzino</button>
+        <button class="tab-btn" data-target="tab_analytics" type="button">Analisi</button>
         <button class="tab-btn" data-target="tab_settings" type="button">Impostazioni</button>
       </nav>
 
@@ -186,7 +188,142 @@
           </div>
         </section>
 
-        <!-- IMPOSTAZIONI -->
+        
+        <!-- ANALISI -->
+        <section id="tab_analytics" class="tab">
+          <div class="section-head">
+            <h2 class="h2">Analisi</h2>
+            <div class="muted">Grafici e indicatori aziendali (da movimenti, lotti e scadenze)</div>
+          </div>
+
+          <div id="analytics_error"></div>
+
+          <div id="analytics_panel">
+            <div class="analytics-toolbar">
+              <div class="field narrow">
+                <label class="label">Periodo</label>
+                <select id="analytics_preset" class="input">
+                  <option value="today">Oggi</option>
+                  <option value="7d" selected>Ultimi 7 giorni</option>
+                  <option value="30d">Ultimi 30 giorni</option>
+                  <option value="month">Mese corrente</option>
+                </select>
+              </div>
+
+              <div class="field narrow">
+                <label class="label">Dal</label>
+                <input id="analytics_start" type="date" class="input" />
+              </div>
+
+              <div class="field narrow">
+                <label class="label">Al</label>
+                <input id="analytics_end" type="date" class="input" />
+              </div>
+
+              <div class="field">
+                <label class="label">Tipo pesce</label>
+                <select id="analytics_fish_type" class="input">
+                  <option value="">Tutti</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="label">Prodotto</label>
+                <select id="analytics_product_id" class="input">
+                  <option value="">Tutti</option>
+                </select>
+              </div>
+
+              <div class="field narrow">
+                <label class="label">Unità</label>
+                <select id="analytics_unit" class="input">
+                  <option value="units" selected>Unità</option>
+                  <option value="trays">Vassoi</option>
+                </select>
+              </div>
+
+              <div class="analytics-actions">
+                <button id="analytics_refresh" type="button" class="btn-primary">Aggiorna</button>
+              </div>
+            </div>
+
+            <div class="dashboard-cards" style="margin-top: var(--gap);">
+              <div class="card kpi">
+                <h3>Venduto</h3>
+                <p id="analytics_kpi_sold">0</p>
+              </div>
+              <div class="card kpi">
+                <h3>Prodotto</h3>
+                <p id="analytics_kpi_produced">0</p>
+              </div>
+              <div class="card kpi">
+                <h3>Rettifiche OUT</h3>
+                <p id="analytics_kpi_adjust_out">0</p>
+              </div>
+              <div class="card kpi">
+                <h3>Saldo</h3>
+                <p id="analytics_kpi_net">0</p>
+              </div>
+            </div>
+
+            <div class="analytics-grid" style="margin-top: var(--gap);">
+              <div class="card span-12">
+                <div class="section-head" style="margin-bottom: 8px;">
+                  <h3 class="h3">Produzione vs Vendita</h3>
+                  <div class="muted">Andamento giornaliero nel periodo</div>
+                </div>
+                <div class="chart-box tall">
+                  <canvas id="analytics_chart_trends"></canvas>
+                </div>
+              </div>
+
+              <div class="card span-6">
+                <div class="section-head" style="margin-bottom: 8px;">
+                  <h3 class="h3">Top prodotti venduti</h3>
+                  <div class="muted">Top 10 nel periodo</div>
+                </div>
+                <div class="chart-box">
+                  <canvas id="analytics_chart_top"></canvas>
+                </div>
+              </div>
+
+              <div class="card span-6">
+                <div class="section-head" style="margin-bottom: 8px;">
+                  <h3 class="h3">Rettifiche OUT per motivo</h3>
+                  <div class="muted">Solo rettifiche in uscita</div>
+                </div>
+                <div class="chart-box">
+                  <canvas id="analytics_chart_adjust"></canvas>
+                </div>
+              </div>
+
+              <div class="card span-12">
+                <div class="section-head" style="margin-bottom: 8px;">
+                  <h3 class="h3">Rischio scadenze (stock attuale)</h3>
+                  <div class="muted">
+                    Entro 7gg: <b id="analytics_exp_3">0</b> · Entro <span id="analytics_exp_alert_days">7</span>gg: <b id="analytics_exp_7">0</b> · Scaduti: <b id="analytics_exp_expired">0</b>
+                  </div>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>Prodotto</th>
+                        <th>Lotto</th>
+                        <th>Scadenza</th>
+                        <th style="text-align:right;">Stock</th>
+                      </tr>
+                    </thead>
+                    <tbody id="analytics_exp_table"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+<!-- IMPOSTAZIONI -->
         <section id="tab_settings" class="tab">
 
           <div class="section-head">
@@ -800,6 +937,7 @@
   </div>
 
   <script src="dashboard.js"></script>
+  <script src="analytics/analytics_tab.js"></script>
   <script>
     window.addEventListener("DOMContentLoaded", () => {
       const sidebar = document.querySelector(".sidebar");
