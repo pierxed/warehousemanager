@@ -1169,3 +1169,22 @@ table.mobile-cards{
   flex-wrap: wrap;
   margin-top: 10px;
 }
+/* Back to top (mobile) */
+.back-to-top{
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9999;
+  padding: 12px 14px;
+  border-radius: 999px;
+  border: 0;
+  display: none;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0,0,0,.25);
+}
+
+.back-to-top.show{ display:block; }
+
+@media (min-width: 768px){
+  .back-to-top{ display:none !important; }
+}

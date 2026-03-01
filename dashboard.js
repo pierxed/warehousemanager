@@ -2136,8 +2136,20 @@ function renderLotsTableFromCache(tokens){
 }
 
 // ---------- INIT ----------
-window.addEventListener('DOMContentLoaded', async ()=>{
 
+window.addEventListener('DOMContentLoaded', async ()=>{
+// --- Back to top ---
+const btnTop = document.getElementById('backToTop');
+if(btnTop){
+  window.addEventListener('scroll', () => {
+    if(window.scrollY > 400) btnTop.classList.add('show');
+    else btnTop.classList.remove('show');
+  });
+
+  btnTop.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
   // input ricerca globale (UNICO)
   const gs = document.getElementById('global_search');
   if(gs){
