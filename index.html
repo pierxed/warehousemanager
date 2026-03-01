@@ -780,15 +780,33 @@
       const btn = document.getElementById("menu_toggle");
       if(!sidebar || !btn) return;
 
+      const setBodyLock = (isOpen) => {
+        // blocca lo scroll sotto e attiva overlay (CSS via body.menu-open)
+        document.body.classList.toggle("menu-open", !!isOpen);
+      };
+
       const setIcon = () => {
         const open = sidebar.classList.contains("menu-open");
         btn.textContent = open ? "✕ Chiudi" : "☰ Menu";
         btn.setAttribute("aria-expanded", open ? "true" : "false");
+        setBodyLock(open);
       };
 
       btn.addEventListener("click", () => {
         sidebar.classList.toggle("menu-open");
         setIcon();
+      });
+
+      // chiudi cliccando sull'overlay (fuori dal menu)
+      document.addEventListener("click", (e) => {
+        if (!sidebar.classList.contains("menu-open")) return;
+        const isMobile = window.matchMedia("(max-width: 680px)").matches;
+        if (!isMobile) return;
+        const clickedInside = sidebar.contains(e.target) || btn.contains(e.target);
+        if (!clickedInside) {
+          sidebar.classList.remove("menu-open");
+          setIcon();
+        }
       });
 
       // chiudi menu quando clicchi una tab (solo mobile)

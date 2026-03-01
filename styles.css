@@ -648,13 +648,38 @@ canvas{
   }
 
   .sidebar{
+    /* keep the header always above the scrolling content */
     position: sticky;
     top: 0;
+    z-index: 1000;
     min-height: 0;
     padding: 14px;
     border-right: none;
     border-bottom: 1px solid var(--border);
     box-shadow: 0 8px 22px rgba(15,23,42,.06);
+  }
+
+  /* When the hamburger menu is open we want it to feel like a drawer:
+     - stay above content
+     - avoid "see-through" while scrolling
+     - prevent background scrolling
+  */
+  body.menu-open::before{
+    content:"";
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,.28);
+    z-index: 900;
+  }
+
+  .sidebar.menu-open{
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    max-height: 100vh;
+    overflow: auto;
+    background: var(--surface);
   }
 
   .menu-toggle{ display:block; }
