@@ -965,7 +965,6 @@ mark.hl{ background: #facc15 !important; color: #111827 !important; padding: 0 2
 
 /* Inventory table: forza lo stile "standard" (evita override vecchi) */
 #tab_inventory .table-wrap{ overflow:auto; border-radius: var(--radius-sm); border:1px solid var(--border); background: var(--surface); }
-#tab_inventory table{ }
 #tab_inventory th{ background: var(--surface-soft); color:#475569; border-bottom:1px solid var(--border); }
 #tab_inventory td{ border-bottom:0px; }
 #tab_inventory tr:hover td{ background: rgba(2,6,23,.03); }

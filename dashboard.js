@@ -1,3 +1,4 @@
+
 // ---------- DASHBOARD ----------
 let salesChart = null;
 let SHOW_ARCHIVED_PRODUCTS = false;
@@ -2180,7 +2181,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       document.querySelectorAll('.tab').forEach(tab=>{
         tab.classList.remove('active');
       });
-
+      localStorage.setItem('wm_last_tab', targetId);
       target.classList.add('active');
 
       // lazy-load tab content
@@ -2198,8 +2199,15 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         }, 0);
       }
     });
-  });
 
+    
+  });
+// --- Restore last opened tab ---
+const lastTabId = localStorage.getItem('wm_last_tab');
+if(lastTabId){
+  const lastBtn = document.querySelector(`.tab-btn[data-target="${lastTabId}"]`);
+  if(lastBtn) lastBtn.click();
+}
   lockLotFields();
 
   // settings prima di inizializzare le UI che dipendono da default (vendita/scadenze)
