@@ -2,6 +2,8 @@
 // ---------- DASHBOARD ----------
 let salesChart = null;
 let SHOW_ARCHIVED_PRODUCTS = false;
+let WM_FEFO_BY_PRODUCT = new Map(); 
+// product_id -> fefo_lot_id oppure fefo_lot_number
 
 // ==========================
 // SETTINGS (v0.2)
@@ -2432,6 +2434,11 @@ async function loadInventoryTab(){
       ins = res[1];
       Cache.inventoryData = inv;
       Cache.inventoryInsights = ins;
+            // --- FEFO map (per evidenziare il lotto FEFO nella vista "per lotto") ---
+      const prodAgg = (inv && inv.products_agg) ? inv.products_agg : [];
+      WM_FEFO_BY_PRODUCT = new Map(
+        prodAgg.map(p => [String(p.product_id), String(p.fefo_lot_id || "")])
+      );
     }
 
     if(inv?.success === false) throw new Error(inv.error || 'Errore api_inventory');
@@ -2589,6 +2596,8 @@ function renderInventoryFromCache(tokens){
 
   // Movimenti (tutti) con paginazione - usa cache Home
   renderInventoryAllMovesFromCache(tokens);
+
+  
 }
 
 
@@ -2731,7 +2740,7 @@ function renderInventoryProducts(rows, tokens){
     const fefoLot = highlightTextRaw((r.fefo_lot_number ?? r.fefo_lot) || '—', tokens);
     const fefoIso = (r.fefo_expiration_date ?? r.fefo_date) || '';
     const fefoDate = highlightTextRaw(fefoIso ? formatDateIT(fefoIso) : '—', tokens);
-
+    const hasFefo = !!(r.fefo_lot && String(r.fefo_lot).trim());
     return `
       <tr>
         <td>
@@ -2750,7 +2759,9 @@ function renderInventoryProducts(rows, tokens){
             <span class="pill-mini">Lotti&nbsp;<strong>${lotsCount}</strong></span>
           </div>
           <div class="inv-cell-sub" style="margin-top:8px;">
-            <span class="pill-mini">FEFO&nbsp;<strong>${fefoLot}</strong></span>
+            <span class="pill-mini ${hasFefo ? 'fefo-highlight' : ''}">
+              FEFO&nbsp;<strong>${fefoLot}</strong>
+            </span>
             <span class="pill-mini ${expClass(fefoIso)}">Scad.&nbsp;<strong>${fefoDate}</strong></span>
           </div>
         </td>
@@ -2821,12 +2832,14 @@ function renderInventoryLots(rows, tokens){
         const prodDate = highlightTextRaw(r.production_date ? formatDateIT(r.production_date) : '—', tokens);
         const expIso = r.expiration_date || '';
         const expDate = highlightTextRaw(expIso ? formatDateIT(expIso) : '—', tokens);
-
+         const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(r.product_id)) || "";
+        const isFefo = fefoLotId !== "" && String(r.lot_id) === String(fefoLotId);
+        
         return {
-          title: `Lotto ${lotNumber}`,
+          title: `<div style="margin-bottom: 10px;">${lotNumber} - ${prodName} - ${fmt}</div>`,
           lines: [
-            `<span class="pill-mini">${prodName}</span> <span class="pill-mini">${fish}</span> <span class="pill-mini">${fmt}</span> <span class="pill-mini">EAN <strong>${ean}</strong></span>`,
-            `<span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span>`,
+            `<span class="pill-mini">${fish}</span> <span class="pill-mini">EAN <strong>${ean}</strong></span>`,
+            `${isFefo ? '<span class="pill-mini-fefo-lot"><strong>FEFO</strong></span>' : ''} <span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span> `,
             `<span class="pill-mini">Prod. <strong>${prodDate}</strong></span> <span class="pill-mini ${expClass(expIso)}">Scad. <strong>${expDate}</strong></span>`,
             `<div class="mcard-actions">
               <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
@@ -2873,15 +2886,16 @@ function renderInventoryLots(rows, tokens){
     const prodDate = highlightTextRaw(r.production_date ? formatDateIT(r.production_date) : '—', tokens);
     const expIso = r.expiration_date || '';
     const expDate = highlightTextRaw(expIso ? formatDateIT(expIso) : '—', tokens);
+    const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(r.product_id)) || "";
+    const isFefo = fefoLotId !== "" && String(r.lot_id) === String(fefoLotId);
 
     return `
       <tr>
         <td>
-          <div class="inv-cell-title">${lotNumber}</div>
+          <div class="inv-cell-title">${lotNumber} - ${prodName} - ${fmt}</div>
           <div class="inv-cell-sub">
-            <span class="pill-mini">${prodName}</span>
+                      ${isFefo ? '<span class="pill-mini-fefo-lot"><strong>FEFO</strong></span>' : ''}
             <span class="pill-mini">${fish}</span>
-            <span class="pill-mini">${fmt}</span>
             <span class="pill-mini">EAN&nbsp;<strong>${ean}</strong></span>
           </div>
         </td>

@@ -8,15 +8,19 @@
    ========================================================= */
 
 /* ---------- Design tokens ---------- */
+
 :root{
   --bg: #f6f8fb;
   --surface: #ffffff;
   --surface-soft: #f1f5f9;
+  --bg-fefo-pill: rgb(255, 230, 230);
+  --text-fefo-pill: red;
 
   --text: #0f172a;
   --muted: #64748b;
 
   --border: #e5e7eb;
+  --border-fefo-pill: red;
   --shadow: 0 10px 26px rgba(15,23,42,.06);
 
   --accent: #2563eb;
@@ -1187,4 +1191,22 @@ table.mobile-cards{
 
 @media (min-width: 768px){
   .back-to-top{ display:none !important; }
+}
+
+/* Evidenzia lotto FEFO nella vista per lotto */
+.fefo-lot-highlight{
+  outline: 2px solid rgba(214, 214, 214, 0.95);
+  background: rgba(255, 0, 0, 0.061);
+}
+
+.pill-mini-fefo-lot{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  color:var(--text-fefo-pill);
+  background: var(--bg-fefo-pill);
+  border:1px solid var(--border-fefo-pill);
+  font-size:12px;
 }
