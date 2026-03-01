@@ -2,6 +2,211 @@
 let salesChart = null;
 let SHOW_ARCHIVED_PRODUCTS = false;
 
+// ==========================
+// SETTINGS (v0.2)
+// - safe defaults: se API/tabella manca, l'app continua a funzionare.
+// ==========================
+const DEFAULT_SETTINGS = {
+  expiry_alert_days: 30,
+  expiry_include_zero_stock: false,
+
+  low_stock_alert_enabled: true,
+  low_stock_threshold_units: 10,
+
+  sale_default_mode: 'FEFO', // FEFO | MANUAL
+  confirm_sale_before_commit: true,
+
+  scanner_auto_submit_on_ean: false,
+  scanner_beep_on_success: false,
+  scanner_vibrate_on_error: false,
+};
+
+let SETTINGS = { ...DEFAULT_SETTINGS };
+
+function coerceBool(v){
+  if(typeof v === 'boolean') return v;
+  if(typeof v === 'number') return v !== 0;
+  const s = String(v ?? '').trim().toLowerCase();
+  return ['1','true','yes','on'].includes(s);
+}
+
+function normalizeSettings(raw){
+  const out = { ...DEFAULT_SETTINGS };
+  if(!raw || typeof raw !== 'object') return out;
+
+  if(raw.expiry_alert_days != null){
+    const d = Math.max(1, Math.min(365, parseInt(raw.expiry_alert_days, 10) || DEFAULT_SETTINGS.expiry_alert_days));
+    out.expiry_alert_days = d;
+  }
+  if(raw.expiry_include_zero_stock != null) out.expiry_include_zero_stock = coerceBool(raw.expiry_include_zero_stock);
+
+  if(raw.low_stock_alert_enabled != null) out.low_stock_alert_enabled = coerceBool(raw.low_stock_alert_enabled);
+  if(raw.low_stock_threshold_units != null){
+    out.low_stock_threshold_units = Math.max(0, parseInt(raw.low_stock_threshold_units, 10) || 0);
+  }
+
+  if(raw.sale_default_mode != null){
+    const m = String(raw.sale_default_mode).trim().toUpperCase();
+    out.sale_default_mode = (m === 'MANUAL') ? 'MANUAL' : 'FEFO';
+  }
+  if(raw.confirm_sale_before_commit != null) out.confirm_sale_before_commit = coerceBool(raw.confirm_sale_before_commit);
+
+  if(raw.scanner_auto_submit_on_ean != null) out.scanner_auto_submit_on_ean = coerceBool(raw.scanner_auto_submit_on_ean);
+  if(raw.scanner_beep_on_success != null) out.scanner_beep_on_success = coerceBool(raw.scanner_beep_on_success);
+  if(raw.scanner_vibrate_on_error != null) out.scanner_vibrate_on_error = coerceBool(raw.scanner_vibrate_on_error);
+
+  return out;
+}
+
+async function loadSettings(){
+  try {
+    const res = await fetchJSON('api_settings_get.php');
+    const s = normalizeSettings(res?.settings);
+    SETTINGS = s;
+  } catch (e) {
+    // fallback: defaults
+    SETTINGS = { ...DEFAULT_SETTINGS };
+  }
+
+  applySettingsToUI();
+}
+
+function applySettingsToUI(){
+  // Home labels
+  const lbl = document.getElementById('card_expiring_label');
+  if(lbl) lbl.innerHTML = `Lotti in scadenza &lt; ${SETTINGS.expiry_alert_days}gg`;
+
+  const badgeMid = document.getElementById('badge_expiry_mid');
+  if(badgeMid){
+    const d = Math.max(7, SETTINGS.expiry_alert_days);
+    badgeMid.textContent = `8–${d} giorni`;
+  }
+
+  const sub = document.getElementById('expiry_subtitle');
+  if(sub){
+    sub.textContent = SETTINGS.expiry_include_zero_stock ? 'Include anche stock = 0' : 'Solo stock > 0';
+  }
+
+  // Vendita default
+  const manualToggle = document.getElementById('sale_manual_toggle');
+  if(manualToggle){
+    const shouldManual = SETTINGS.sale_default_mode === 'MANUAL';
+    if(manualToggle.checked !== shouldManual){
+      manualToggle.checked = shouldManual;
+      if(window.__SALE_UI_READY){
+        manualToggle.dispatchEvent(new Event('change'));
+      }
+    }
+  }
+}
+
+function fillSettingsForm(){
+  const v = SETTINGS;
+  const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = String(val); };
+  const setChk = (id, val) => { const el = document.getElementById(id); if(el) el.checked = !!val; };
+
+  setVal('set_expiry_alert_days', v.expiry_alert_days);
+  setChk('set_expiry_include_zero_stock', v.expiry_include_zero_stock);
+
+  setChk('set_low_stock_alert_enabled', v.low_stock_alert_enabled);
+  setVal('set_low_stock_threshold_units', v.low_stock_threshold_units);
+
+  const mode = document.getElementById('set_sale_default_mode');
+  if(mode) mode.value = v.sale_default_mode;
+  setChk('set_confirm_sale_before_commit', v.confirm_sale_before_commit);
+
+  setChk('set_scanner_auto_submit_on_ean', v.scanner_auto_submit_on_ean);
+  setChk('set_scanner_beep_on_success', v.scanner_beep_on_success);
+  setChk('set_scanner_vibrate_on_error', v.scanner_vibrate_on_error);
+}
+
+function collectSettingsFromForm(){
+  const getVal = (id) => document.getElementById(id)?.value;
+  const getChk = (id) => document.getElementById(id)?.checked === true;
+
+  const days = Math.max(1, Math.min(365, parseInt(getVal('set_expiry_alert_days'), 10) || DEFAULT_SETTINGS.expiry_alert_days));
+  const threshold = Math.max(0, parseInt(getVal('set_low_stock_threshold_units'), 10) || 0);
+  const mode = String(getVal('set_sale_default_mode') || 'FEFO').toUpperCase() === 'MANUAL' ? 'MANUAL' : 'FEFO';
+
+  return {
+    expiry_alert_days: days,
+    expiry_include_zero_stock: getChk('set_expiry_include_zero_stock'),
+
+    low_stock_alert_enabled: getChk('set_low_stock_alert_enabled'),
+    low_stock_threshold_units: threshold,
+
+    sale_default_mode: mode,
+    confirm_sale_before_commit: getChk('set_confirm_sale_before_commit'),
+
+    scanner_auto_submit_on_ean: getChk('set_scanner_auto_submit_on_ean'),
+    scanner_beep_on_success: getChk('set_scanner_beep_on_success'),
+    scanner_vibrate_on_error: getChk('set_scanner_vibrate_on_error'),
+  };
+}
+
+async function saveSettingsFromForm(){
+  const msg = document.getElementById('settings_message');
+  const setMsg = (t, cls='muted') => {
+    if(!msg) return;
+    msg.className = cls;
+    msg.textContent = t;
+  };
+
+  try {
+    const payload = collectSettingsFromForm();
+    setMsg('Salvataggio…');
+    const res = await fetchJSON('api_settings_save.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ settings: payload })
+    });
+
+    if(res?.success === false){
+      setMsg(res?.error || 'Errore nel salvataggio', 'message error');
+      return;
+    }
+
+    SETTINGS = normalizeSettings(res?.settings || payload);
+    applySettingsToUI();
+    fillSettingsForm();
+
+    // Ricarica Home per rifare i filtri scadenze
+    await loadHomeDashboard();
+    if(Cache.inventoryData && Cache.inventoryInsights){
+      renderInventoryFromCache(tokenize(getGlobalQuery()));
+    }
+    applyGlobalSearch();
+
+    setMsg('✅ Salvato', 'message success');
+  } catch (e) {
+    console.error(e);
+    setMsg('Errore: controlla tabella settings e API', 'message error');
+  }
+}
+
+// feedback scanner (safe)
+async function scanFeedback(ok){
+  try {
+    if(ok && SETTINGS.scanner_beep_on_success){
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if(AudioCtx){
+        const ctx = new AudioCtx();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = 880;
+        g.gain.value = 0.04;
+        o.connect(g); g.connect(ctx.destination);
+        o.start();
+        setTimeout(()=>{ try{o.stop();}catch{} try{ctx.close();}catch{} }, 90);
+      }
+    }
+    if(!ok && SETTINGS.scanner_vibrate_on_error && navigator.vibrate){
+      navigator.vibrate([70, 40, 70]);
+    }
+  } catch(_){}
+}
+
 function isMobile(){
   return window.matchMedia("(max-width: 680px)").matches;
 }
@@ -190,9 +395,15 @@ async function loadHomeDashboard(){
 
   document.getElementById('card_today_production').innerText = totalTodayProduction;
 
+  const expiryDays = Math.max(1, Number(SETTINGS?.expiry_alert_days ?? 30));
+  const includeZero = !!SETTINGS?.expiry_include_zero_stock;
+
   const expiringLots = lotsWithStock.filter(l=>{
+    if(!l.expiration_date) return false;
     const diffDays = Math.ceil((new Date(l.expiration_date) - today)/(1000*60*60*24));
-    return diffDays <= 30 && (Number(l.stock)||0) > 0;
+    const st = Number(l.stock)||0;
+    if(!includeZero && st <= 0) return false;
+    return diffDays <= expiryDays && diffDays >= 0;
   });
 
   document.getElementById('card_expiring').innerText = expiringLots.length;
@@ -207,7 +418,7 @@ async function loadHomeDashboard(){
     const inDays = (d) => Math.ceil((new Date(d) - today) / (1000*60*60*24));
 
     const exp7 = [];
-    const exp30 = [];
+    const expMid = [];
 
     expiringLots
       .sort((a,b)=> new Date(a.expiration_date) - new Date(b.expiration_date))
@@ -215,7 +426,7 @@ async function loadHomeDashboard(){
         const days = inDays(l.expiration_date);
 
         if(days >= 0 && days <= 7) exp7.push(l);
-        else if(days >= 8 && days <= 30) exp30.push(l);
+        else if(days >= 8 && days <= expiryDays) expMid.push(l);
       });
 
     if(isMobile()){
@@ -228,7 +439,7 @@ async function loadHomeDashboard(){
         right: `${l.stock}`
       })));
 
-      renderMobileRows(tb30, exp30.slice(0,8).map(l => ({
+      renderMobileRows(tb30, expMid.slice(0,8).map(l => ({
         title: l.product_name,
         lines: [
           `Lotto: <strong>${l.lot_number}</strong>`,
@@ -246,7 +457,7 @@ async function loadHomeDashboard(){
         </tr>
       `).join('') || `<tr><td colspan="4" class="muted">Nessuna</td></tr>`;
 
-      tb30.innerHTML = exp30.slice(0,8).map(l => `
+      tb30.innerHTML = expMid.slice(0,8).map(l => `
         <tr>
           <td>${l.product_name}</td>
           <td>${l.lot_number}</td>
@@ -1181,40 +1392,47 @@ const SaleUI = (() => {
     const lines = humanPlanLines(preview.plan || []);
     if (el('sale_plan_hint')) el('sale_plan_hint').textContent = `Scarico automatico: ${lines.length} lotto/i`;
 
-    renderConfirmBox({
-      title: `Stai per vendere ${quantity} barattoli`,
-      subtitle: `Prodotto: ${productLabel}. Conferma per registrare la vendita.`,
-      planLines: lines,
-      onConfirm: async () => {
-        const commit = await fetchJSON('api_sale_commit_v2.php', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ mode:'auto', product_id: currentProduct.id, quantity })
-        });
+    const commitAndRefresh = async () => {
+      const commit = await fetchJSON('api_sale_commit_v2.php', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ mode:'auto', product_id: currentProduct.id, quantity })
+      });
 
-        if (commit?.success === false || commit?.error) {
-          setMsg('error', commit.available != null
-            ? `Stock insufficiente: disponibili ${commit.available}. Riprova.`
-            : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore vendita')));
-          return;
-        }
+      if (commit?.success === false || commit?.error) {
+        setMsg('error', commit.available != null
+          ? `Stock insufficiente: disponibili ${commit.available}. Riprova.`
+          : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore vendita')));
+        return;
+      }
 
-        clearConfirmBox();
-        setMsg('success', `✅ Vendita registrata: ${commit.sold} barattoli. Scaricato da: ${lines.map(l=>l.replace(/<[^>]*>/g,'')).join(' | ')}`);
+      clearConfirmBox();
+      setMsg('success', `✅ Vendita registrata: ${commit.sold} barattoli. Scaricato da: ${lines.map(l=>l.replace(/<[^>]*>/g,'')).join(' | ')}`);
 
-        el('barcode').value = '';
-        el('sale_qty').value = 1;
-        resetAllUI();
+      el('barcode').value = '';
+      el('sale_qty').value = 1;
+      resetAllUI();
 
-        await loadHomeDashboard();
-        await loadProductsTable();
-        Cache.inventoryData = null;
-        Cache.inventoryInsights = null;
-        if(isTabActive('tab_inventory')) await loadInventoryTab();
-        applyGlobalSearch();
-      },
-      onCancel: () => setMsg('muted', 'Operazione annullata.')
-    });
+      await loadHomeDashboard();
+      await loadProductsTable();
+      Cache.inventoryData = null;
+      Cache.inventoryInsights = null;
+      if(isTabActive('tab_inventory')) await loadInventoryTab();
+      applyGlobalSearch();
+    };
+
+    if(SETTINGS.confirm_sale_before_commit){
+      renderConfirmBox({
+        title: `Stai per vendere ${quantity} barattoli`,
+        subtitle: `Prodotto: ${productLabel}. Conferma per registrare la vendita.`,
+        planLines: lines,
+        onConfirm: commitAndRefresh,
+        onCancel: () => setMsg('muted', 'Operazione annullata.')
+      });
+    } else {
+      // no-confirm mode
+      await commitAndRefresh();
+    }
   };
 
   // -------- MANUAL (2 step + chip) --------
@@ -1247,40 +1465,46 @@ const SaleUI = (() => {
       return `Lotto <strong>${lotLabel}</strong>${exp}: <strong>-${x.qty}</strong> barattoli`;
     });
 
-    renderConfirmBox({
-      title: `Conferma vendita manuale (${quantity})`,
-      subtitle: `Prodotto: ${currentProduct.name || ('Prodotto #' + currentProduct.id)}`,
-      planLines,
-      onConfirm: async () => {
-        const commit = await fetchJSON('api_sale_commit_v2.php', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ mode:'manual', product_id: currentProduct.id, quantity, lots })
-        });
+    const commitAndRefresh = async () => {
+      const commit = await fetchJSON('api_sale_commit_v2.php', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ mode:'manual', product_id: currentProduct.id, quantity, lots })
+      });
 
-        if (commit.success === false || commit.error) {
-          setMsg('error', commit.available != null
-            ? `Stock insufficiente: disponibili ${commit.available}.`
-            : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore')));
-          return;
-        }
+      if (commit.success === false || commit.error) {
+        setMsg('error', commit.available != null
+          ? `Stock insufficiente: disponibili ${commit.available}.`
+          : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore')));
+        return;
+      }
 
-        clearConfirmBox();
-        setMsg('success', `✅ Vendita manuale registrata: ${commit.sold} barattoli.`);
+      clearConfirmBox();
+      setMsg('success', `✅ Vendita manuale registrata: ${commit.sold} barattoli.`);
 
-        el('barcode').value = '';
-        el('sale_qty').value = 1;
-        resetAllUI();
+      el('barcode').value = '';
+      el('sale_qty').value = 1;
+      resetAllUI();
 
-        await loadHomeDashboard();
-        await loadProductsTable();
-        Cache.inventoryData = null;
-        Cache.inventoryInsights = null;
-        if(isTabActive('tab_inventory')) await loadInventoryTab();
-        applyGlobalSearch();
-      },
-      onCancel: () => setMsg('muted', 'Operazione annullata.')
-    });
+      await loadHomeDashboard();
+      await loadProductsTable();
+      Cache.inventoryData = null;
+      Cache.inventoryInsights = null;
+      if(isTabActive('tab_inventory')) await loadInventoryTab();
+      applyGlobalSearch();
+    };
+
+    if(SETTINGS.confirm_sale_before_commit){
+      renderConfirmBox({
+        title: `Conferma vendita manuale (${quantity})`,
+        subtitle: `Prodotto: ${currentProduct.name || ('Prodotto #' + currentProduct.id)}`,
+        planLines,
+        onConfirm: commitAndRefresh,
+        onCancel: () => setMsg('muted', 'Operazione annullata.')
+      });
+    } else {
+      await commitAndRefresh();
+    }
   };
 
   const openManualBoxAndLoadLots = async () => {
@@ -1340,16 +1564,22 @@ const SaleUI = (() => {
       });
     }
 
-    // barcode scanner-friendly
+    // barcode scanner-friendly (safe, opzionale via settings)
     let barcodeTimer = null;
     el('barcode')?.addEventListener('input', () => {
       clearTimeout(barcodeTimer);
+      const wait = SETTINGS.scanner_auto_submit_on_ean ? 40 : 180;
       barcodeTimer = setTimeout(async () => {
         const code = el('barcode')?.value.trim() || '';
         if (!code) return;
 
         const p = await fetchProductByEAN(code);
-        if (p?.error || p?.success === false) return;
+        if (p?.error || p?.success === false) {
+          await scanFeedback(false);
+          return;
+        }
+
+        await scanFeedback(true);
 
         currentProduct = p;
 
@@ -1365,7 +1595,7 @@ const SaleUI = (() => {
         if (isManual() && currentProduct?.id) {
           await openManualBoxAndLoadLots();
         }
-      }, 180);
+      }, wait);
     });
 
     // qty cambia: se manuale ricalcola status e ricarica suggeriti
@@ -1410,6 +1640,8 @@ const SaleUI = (() => {
         btn.disabled = false;
       }
     };
+
+    window.__SALE_UI_READY = true;
   };
 
   return { init };
@@ -1453,6 +1685,8 @@ function renderProductsFromRows(rows, tokens){
 
   visibleRows.forEach(p=>{
     const imageSrc = p.image_path ? p.image_path : 'uploads/stock.jpg';
+    const stockNum = Number(p.stock ?? 0);
+    const low = SETTINGS.low_stock_alert_enabled && stockNum <= Number(SETTINGS.low_stock_threshold_units || 0);
 
     const card=document.createElement('div');
     card.className='product-card';
@@ -1493,7 +1727,8 @@ function renderProductsFromRows(rows, tokens){
       </div>
 
       <div class="product-stock">
-        Stock totale: ${highlightTextRaw(String(p.stock ?? 0), tokens)} barattoli
+        Stock totale: ${highlightTextRaw(String(stockNum), tokens)} barattoli
+        ${low ? `<span class="pill-mini pill-low" style="margin-left:10px;">⚠️ basso</span>` : ''}
       </div>
 
       <div class="product-actions view-mode">
@@ -1954,10 +2189,21 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       }
 
       if(targetId === 'tab_inventory'){ setTimeout(loadInventoryTab, 0); }
+
+      if(targetId === 'tab_settings'){
+        setTimeout(()=>{
+          fillSettingsForm();
+          const m = document.getElementById('settings_message');
+          if(m){ m.className = 'muted'; m.textContent = ''; }
+        }, 0);
+      }
     });
   });
 
   lockLotFields();
+
+  // settings prima di inizializzare le UI che dipendono da default (vendita/scadenze)
+  await loadSettings();
 
   await loadProducts();
   SaleUI.init();
@@ -1970,6 +2216,9 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   await loadProductsTable();
   await refreshTodayBatches();
   updateGlobalSearchHint();
+
+  // settings: salva
+  document.getElementById('btn_save_settings')?.addEventListener('click', saveSettingsFromForm);
 
   // applica ricerca (se già c'è testo dentro)
   applyGlobalSearch();
@@ -2081,6 +2330,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 
       clearTimeout(timeout);
 
+      const wait = SETTINGS.scanner_auto_submit_on_ean ? 40 : 300;
       timeout = setTimeout(async ()=>{
 
         const code = e.target.value.trim();
@@ -2093,9 +2343,12 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         const product = await fetchProductByEAN(code);
 
         if(product.error){
+          await scanFeedback(false);
           lockLotFields();
           return;
         }
+
+        await scanFeedback(true);
 
         const nameSelect = document.getElementById('product_name_select');
         const formatSelect = document.getElementById('prod_select');
@@ -2109,7 +2362,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         unlockLotFields();
         await refreshTodayBatches();
 
-      }, 300);
+      }, wait);
 
     });
   }
@@ -2387,6 +2640,7 @@ function renderInventoryProducts(rows, tokens){
         const ean = highlightTextRaw(r.ean||'—', tokens);
 
         const stock = Number(r.stock_total ?? r.total_stock ?? 0);
+        const low = SETTINGS.low_stock_alert_enabled && stock <= Number(SETTINGS.low_stock_threshold_units||0);
         const lotsCount = Number(r.lots_count||0);
         const fefoLot = highlightTextRaw((r.fefo_lot_number ?? r.fefo_lot) || '—', tokens);
         const fefoIso = (r.fefo_expiration_date ?? r.fefo_date) || '';
@@ -2396,7 +2650,7 @@ function renderInventoryProducts(rows, tokens){
           title: `${prodName} ${fmt ? '• ' + fmt : ''}`,
           lines: [
             `<span class="pill-mini">${fish}</span> <span class="pill-mini">EAN <strong>${ean}</strong></span>`,
-            `<span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span> <span class="pill-mini">Lotti <strong>${lotsCount}</strong></span>`,
+            `<span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span> <span class="pill-mini">Lotti <strong>${lotsCount}</strong></span> ${low ? `<span class="pill-mini pill-low">⚠️ basso</span>` : ''}`,
             `<span class="pill-mini">FEFO <strong>${fefoLot}</strong></span> <span class="pill-mini ${expClass(fefoIso)}">Scad. <strong>${fefoDate}</strong></span>`,
             `<div class="mcard-actions">
               <button type="button" class="qa-btn" data-qa="prod" data-product="${Number(r.product_id||0)}">Produci</button>
@@ -2444,6 +2698,7 @@ function renderInventoryProducts(rows, tokens){
     const ean = highlightTextRaw(r.ean||'—', tokens);
 
     const stock = Number(r.stock_total ?? r.total_stock ?? 0);
+    const low = SETTINGS.low_stock_alert_enabled && stock <= Number(SETTINGS.low_stock_threshold_units||0);
     const lotsCount = Number(r.lots_count||0);
     const fefoLot = highlightTextRaw((r.fefo_lot_number ?? r.fefo_lot) || '—', tokens);
     const fefoIso = (r.fefo_expiration_date ?? r.fefo_date) || '';
@@ -2463,6 +2718,7 @@ function renderInventoryProducts(rows, tokens){
         <td>
           <div class="inv-cell-sub" style="margin-top:0;">
             <span class="pill-mini pill-stock">Stock&nbsp;<strong>${stock}</strong></span>
+            ${low ? `<span class="pill-mini pill-low">⚠️ basso</span>` : ''}
             <span class="pill-mini">Lotti&nbsp;<strong>${lotsCount}</strong></span>
           </div>
           <div class="inv-cell-sub" style="margin-top:8px;">

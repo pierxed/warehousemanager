@@ -29,12 +29,11 @@
         <button class="tab-btn" data-target="tab_sale" type="button">Vendita</button>
         <button class="tab-btn" data-target="tab_adjust" type="button">Rettifica</button>
         <button class="tab-btn" data-target="tab_inventory">Magazzino</button>
-        <button class="tab-btn" data-target="tab_stock" type="button">Stock</button>
-        <button class="tab-btn" data-target="tab_lots" type="button">Lotti</button>
+        <button class="tab-btn" data-target="tab_settings" type="button">Impostazioni</button>
       </nav>
 
       <div class="sidebar-footer">
-        <div class="pill">v0.1</div>
+        <div class="pill">v0.2</div>
         <div class="muted">Locale (MAMP)</div>
       </div>
     </aside>
@@ -83,7 +82,7 @@
             </div>
 
             <div class="card kpi">
-              <h3>Lotti in scadenza &lt; 30gg</h3>
+              <h3 id="card_expiring_label">Lotti in scadenza &lt; 30gg</h3>
               <p id="card_expiring">0</p>
             </div>
 
@@ -100,7 +99,7 @@
             <div class="card">
               <div class="card-head">
                 <h3>Scadenze</h3>
-                <div class="muted">Solo stock &gt; 0</div>
+                <div id="expiry_subtitle" class="muted">Solo stock &gt; 0</div>
               </div>
 
               <div class="home-split">
@@ -126,7 +125,7 @@
 
                 <div class="mini-block">
                   <div class="mini-title">
-                    <span class="badge warn">8–30 giorni</span>
+                    <span id="badge_expiry_mid" class="badge warn">8–30 giorni</span>
                   </div>
 
                   <div class="table-wrap">
@@ -183,6 +182,141 @@
             </div>
 
           </div>
+        </section>
+
+        <!-- IMPOSTAZIONI -->
+        <section id="tab_settings" class="tab">
+
+          <div class="section-head">
+            <h2 class="h2">Impostazioni</h2>
+            <div class="muted">Preferenze operatore (salvate nel DB)</div>
+          </div>
+
+          <div class="settings-grid">
+
+            <div class="card">
+              <div class="card-head">
+                <h3>Scadenze</h3>
+                <div class="muted">Alert e filtri</div>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label class="label">Giorni alert</label>
+                  <input id="set_expiry_alert_days" type="number" class="input" min="1" max="365" step="1" />
+                  <div class="hint muted">Esempio: 30 → mostra lotti che scadono entro 30 giorni</div>
+                </div>
+
+                <div class="field">
+                  <label class="label">Includi stock zero</label>
+                  <label class="toggle">
+                    <input id="set_expiry_include_zero_stock" type="checkbox" />
+                    <span class="toggle-ui" aria-hidden="true"></span>
+                    <span class="toggle-text muted">Mostra anche lotti senza stock negli alert scadenze</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <h3>Stock</h3>
+                <div class="muted">Scorte minime</div>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label class="label">Abilita alert scorte minime</label>
+                  <label class="toggle">
+                    <input id="set_low_stock_alert_enabled" type="checkbox" />
+                    <span class="toggle-ui" aria-hidden="true"></span>
+                    <span class="toggle-text muted">Evidenzia prodotti sotto soglia</span>
+                  </label>
+                </div>
+
+                <div class="field">
+                  <label class="label">Soglia unità</label>
+                  <input id="set_low_stock_threshold_units" type="number" class="input" min="0" max="100000" step="1" />
+                  <div class="hint muted">Sotto questo numero lo stock viene marcato come “basso”</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <h3>Vendita</h3>
+                <div class="muted">Default e conferme</div>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label class="label">Default FEFO / manuale</label>
+                  <select id="set_sale_default_mode" class="input">
+                    <option value="FEFO">FEFO (auto)</option>
+                    <option value="MANUAL">Manuale</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label class="label">Conferma prima del commit</label>
+                  <label class="toggle">
+                    <input id="set_confirm_sale_before_commit" type="checkbox" />
+                    <span class="toggle-ui" aria-hidden="true"></span>
+                    <span class="toggle-text muted">Se disattivo, registra subito la vendita</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <h3>Scanner</h3>
+                <div class="muted">Predisposto (safe)</div>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label class="label">Auto invio EAN</label>
+                  <label class="toggle">
+                    <input id="set_scanner_auto_submit_on_ean" type="checkbox" />
+                    <span class="toggle-ui" aria-hidden="true"></span>
+                    <span class="toggle-text muted">Riduce attese dopo scansione</span>
+                  </label>
+                </div>
+
+                <div class="field">
+                  <label class="label">Suono / vibrazione</label>
+                  <div style="display:grid;gap:10px;">
+                    <label class="toggle">
+                      <input id="set_scanner_beep_on_success" type="checkbox" />
+                      <span class="toggle-ui" aria-hidden="true"></span>
+                      <span class="toggle-text muted">Suono su scansione OK</span>
+                    </label>
+
+                    <label class="toggle">
+                      <input id="set_scanner_vibrate_on_error" type="checkbox" />
+                      <span class="toggle-ui" aria-hidden="true"></span>
+                      <span class="toggle-text muted">Vibrazione su errore</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <div class="card-head">
+              <h3>Salvataggio</h3>
+              <div class="muted">Le vecchie funzioni restano intatte</div>
+            </div>
+
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <button id="btn_save_settings" type="button" class="btn-primary">Salva impostazioni</button>
+              <div id="settings_message" class="muted"></div>
+            </div>
+          </div>
+
         </section>
 
         <!-- PRODOTTI -->
