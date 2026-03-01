@@ -2183,7 +2183,15 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       });
       localStorage.setItem('wm_last_tab', targetId);
       target.classList.add('active');
-
+      // --- Auto-focus inputs on specific tabs (mobile friendly) ---
+      setTimeout(() => {
+        if(targetId === 'tab_production'){
+          document.getElementById('prod_ean')?.focus();
+        }
+        if(targetId === 'tab_sale'){
+          document.getElementById('barcode')?.focus();
+        }
+      }, 50);
       // lazy-load tab content
       if(targetId === 'tab_adjust'){
         setTimeout(loadAdjustTab, 0);
