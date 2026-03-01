@@ -578,13 +578,26 @@
           </div>
 
           <div class="card">
-            <h3 id="inv_table_title">Vista per prodotto</h3>
-            <div class="table-wrap">
+            <div class="card-head" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+              <div>
+                <h3 id="inv_table_title">Vista per prodotto</h3>
+                <div class="muted">Magazzino • 5 per pagina</div>
+              </div>
+
+              <div class="row" style="gap:8px; align-items:center;">
+                <span class="muted" id="inv_table_count">0</span>
+                <button id="inv_table_prev" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">←</button>
+                <span id="inv_table_page" class="pill" style="padding:6px 10px;">1/1</span>
+                <button id="inv_table_next" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">→</button>
+              </div>
+            </div>
+            <div class="table-wrap desktop-only">
               <table id="inv_table" class="table">
                 <thead id="inv_thead"></thead>
                 <tbody id="inv_tbody"></tbody>
               </table>
             </div>
+            <div id="inv_mobile_cards" class="mobile-only mobile-cards" aria-label="Lista magazzino mobile"></div>
           </div>
 
           <!-- MOVIMENTI (tutti) - stessa UI della Home + paginazione 10 -->
@@ -603,7 +616,7 @@
               </div>
             </div>
 
-            <div class="table-wrap">
+            <div class="table-wrap desktop-only">
               <table class="table">
                 <thead>
                   <tr>
@@ -618,6 +631,7 @@
                 <tbody id="inv_all_moves_table"></tbody>
               </table>
             </div>
+            <div id="inv_moves_mobile_cards" class="mobile-only mobile-cards" aria-label="Lista movimenti mobile"></div>
           </div>
         </section>
 

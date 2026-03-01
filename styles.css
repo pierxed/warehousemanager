@@ -407,7 +407,7 @@ button{ font-family: inherit; border-radius: 14px; }
   margin-bottom: 14px;
 }
 
-/* Create product input styles (so they don't look "unstyled") */
+/* Create product input styles */
 .create-grid input[type="text"],
 .create-grid input[type="number"],
 .create-grid input[type="file"],
@@ -497,7 +497,6 @@ button{ font-family: inherit; border-radius: 14px; }
   gap:22px;
 }
 
-/* scan centrale */
 .scan-row{
   text-align:center;
   max-width:520px;
@@ -525,7 +524,6 @@ button{ font-family: inherit; border-radius: 14px; }
   box-shadow:0 0 0 4px rgba(37,99,235,.18);
 }
 
-/* produzione: due colonne reali (override grid-column span) */
 .production-layout .form-grid{
   display:grid;
   grid-template-columns: repeat(2, minmax(0,1fr));
@@ -572,8 +570,6 @@ canvas{
 @keyframes slideOut{ to{ opacity: 0; transform: translateX(16px); } }
 
 /* ---------- Responsive ---------- */
-
-/* Generic small tweaks */
 @media (max-width: 980px){
   .main{ padding: 16px; }
   .topbar{ flex-direction: column; }
@@ -590,7 +586,6 @@ canvas{
   .sidebar-footer{ display:none; }
 }
 
-/* Tablet/intermedio: top nav pills (NO hamburger) */
 @media (max-width: 980px) and (min-width: 681px){
   .app{
     display:flex;
@@ -608,10 +603,8 @@ canvas{
     box-shadow: 0 8px 22px rgba(15,23,42,.06);
   }
 
-  /* NO hamburger */
   .menu-toggle{ display:none !important; }
 
-  /* pills orizzontali */
   .tabs{
     display:flex;
     flex-direction: row;
@@ -621,7 +614,7 @@ canvas{
     padding: 0;
     margin: 0;
     flex-wrap: nowrap;
-    scrollbar-width: none; /* Firefox */
+    scrollbar-width: none;
   }
   .tabs::-webkit-scrollbar{ height: 0; }
 
@@ -635,7 +628,6 @@ canvas{
   }
 }
 
-/* Mobile: hamburger */
 .menu-toggle{
   display:none;
   width:100%;
@@ -667,10 +659,8 @@ canvas{
 
   .menu-toggle{ display:block; }
 
-  /* tabs chiusi di default su mobile */
   .tabs{ display:none; margin-top:10px; }
 
-  /* aperti quando sidebar ha menu-open */
   .sidebar.menu-open .tabs{
     display:flex;
     flex-direction: column;
@@ -715,12 +705,8 @@ canvas{
   color: #92400e;
 }
 
-/* chart area più leggibile */
-.chart-wrap{
-  height: 340px;
-}
+.chart-wrap{ height: 340px; }
 
-/* responsive */
 @media (max-width: 980px){
   .home-split{ grid-template-columns: 1fr; }
 }
@@ -728,17 +714,10 @@ canvas{
   .chart-wrap{ height: 260px; }
 }
 
-/* Home tables: non forzare min-width gigante */
-.home-grid table{
-  min-width: 0 !important;
-}
+.home-grid table{ min-width: 0 !important; }
 
-/* ===== HOME mobile: niente scroll orizzontale ===== */
 @media (max-width: 680px){
-  /* evita overflow generale */
   .main{ overflow-x: hidden; }
-
-  /* home: blocca tabelle larghe e canvas */
   .home-grid .table-wrap{ overflow: hidden; }
   .home-grid table{ min-width: 0 !important; }
 
@@ -749,196 +728,38 @@ canvas{
   .card{ max-width: 100%; }
 }
 
-/* ===== HOME mobile: tabelle -> lista leggibile ===== */
 @media (max-width: 680px){
-  /* Solo Home: niente intestazioni tabella */
-  .home-grid .table-wrap thead{
-    display:none !important;
-  }
+  .home-grid .table-wrap thead{ display:none !important; }
 
-  /* Table non deve forzare colonne */
   .home-grid .table-wrap table{
     min-width: 0 !important;
     width: 100% !important;
     table-layout: fixed;
   }
 
-  /* Ogni riga diventa un blocco */
   .home-grid .table-wrap tbody tr{
     display:block;
     border-bottom: 1px solid var(--border);
   }
 
-  /* La singola cella che noi riempiamo diventa la "card" */
   .home-grid .table-wrap tbody td{
     display:block;
     padding: 12px 14px;
     border-bottom: none;
   }
 
-  /* Evita overflow dei contenuti lunghi */
   .home-grid .table-wrap *{
     max-width: 100%;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
 
-  /* Grafico: evita sbordi */
   .chart-wrap{ overflow:hidden; }
   #salesChart{ width:100% !important; display:block; }
 }
 
 /* --- SALE UI MODERNA --- */
 .hidden { display:none !important; }
-
-.sale-confirm{
-  margin-top:12px;
-  padding:12px;
-  border-radius:16px;
-  border:1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.04);
-}
-
-.sale-confirm-head{
-  display:flex;
-  justify-content:space-between;
-  align-items:baseline;
-  gap:12px;
-  margin-bottom:10px;
-}
-
-.sale-confirm-title{
-  font-weight:900;
-  letter-spacing:0.2px;
-}
-
-.sale-confirm-sub{
-  font-size:13px;
-  color:#94a3b8;
-}
-
-.sale-plan-list{
-  display:grid;
-  gap:8px;
-  margin:10px 0 12px;
-}
-
-.sale-plan-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,0.08);
-  background: rgba(0,0,0,0.12);
-}
-
-.sale-plan-left{
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-}
-
-.sale-plan-top{
-  display:flex;
-  gap:8px;
-  align-items:center;
-  flex-wrap:wrap;
-}
-
-.sale-badge{
-  padding:3px 10px;
-  border-radius:999px;
-  font-size:12px;
-  border:1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.06);
-}
-
-.sale-plan-meta{
-  font-size:12px;
-  color:#94a3b8;
-}
-
-.sale-plan-qty{
-  font-weight:900;
-  font-size:16px;
-  white-space:nowrap;
-}
-
-/* Chips moderne */
-.sale-chips{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-}
-
-.sale-chip{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 12px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.06);
-  color:inherit;
-  cursor:pointer;
-  transition: transform .08s ease, background .12s ease, border-color .12s ease;
-  user-select:none;
-}
-
-.sale-chip:hover{
-  transform: translateY(-1px);
-  background: rgba(255,255,255,0.09);
-  border-color: rgba(255,255,255,0.18);
-}
-
-.sale-chip:active{
-  transform: translateY(0px);
-}
-
-.sale-chip .chip-pill{
-  padding:2px 8px;
-  border-radius:999px;
-  font-size:12px;
-  background: rgba(0,0,0,0.18);
-  border: 1px solid rgba(255,255,255,0.10);
-}
-
-.sale-chip.selected{
-  background: rgba(59,130,246,0.18);
-  border-color: rgba(59,130,246,0.35);
-}
-
-.sale-chip.disabled{
-  opacity:.45;
-  cursor:not-allowed;
-  transform:none !important;
-}
-
-.sale-chip-actions{
-  display:flex;
-  gap:6px;
-  margin-left:6px;
-}
-
-.sale-chip-btn{
-  width:26px;
-  height:26px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.06);
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  transition: background .12s ease, border-color .12s ease;
-}
-
-.sale-chip-btn:hover{
-  background: rgba(255,255,255,0.10);
-  border-color: rgba(255,255,255,0.18);
-}
 
 /* Movimenti: type badge */
 .badge-move{
@@ -969,75 +790,111 @@ canvas{
   background: rgba(59,130,246,.14);
 }
 
-/* Riga accentata (subtle) */
-.move-row{
-  position:relative;
-}
-.move-row.sale{
-  box-shadow: inset 3px 0 0 rgba(239,68,68,.55);
-}
-.move-row.production{
-  box-shadow: inset 3px 0 0 rgba(34,197,94,.55);
-}
+.move-row{ position:relative; }
+.move-row.sale{ box-shadow: inset 3px 0 0 rgba(239,68,68,.55); }
+.move-row.production{ box-shadow: inset 3px 0 0 rgba(34,197,94,.55); }
+.move-row.adjustment{ box-shadow: inset 3px 0 0 rgba(59,130,246,.55); }
 
-.move-row.adjustment{
-  box-shadow: inset 3px 0 0 rgba(59,130,246,.55);
-}
+mark.hl{ background: #facc15 !important; color: #111827 !important; padding: 0 2px !important; border-radius: 4px !important; }
+#lots_table mark.hl{ background: rgba(0,0,0,.35) !important; color: #fff !important; outline: 1px solid rgba(255,255,255,.25); }
 
-/* ===== prodotti archiviati ===== */
-
-.product-archived{
-  opacity:.6;
-  filter:grayscale(.25);
-}
-
-.badge-archived{
-  margin-left:8px;
-  font-size:11px;
-  padding:2px 8px;
-  border-radius:999px;
-  background:#ef4444;
-  color:white;
-  font-weight:600;
-}
-mark.hl{
-  padding: 0 2px;
-  border-radius: 4px;
-  background: rgba(250, 204, 21, .55);
-  color: inherit;
-}
-mark.hl{
-  background: #facc15 !important;
-  color: #111827 !important;
-  padding: 0 2px !important;
-  border-radius: 4px !important;
-}
-#lots_table mark.hl{
-  background: rgba(0,0,0,.35) !important;
-  color: #fff !important;
-  outline: 1px solid rgba(255,255,255,.25);
-}
+/* ===== Magazzino: UI pulita, stesso mood delle tabelle (Movimenti) ===== */
 
 .inv-kpis{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:12px 0; }
 .inv-kpis .label{ font-size:12px; opacity:.75; }
-.inv-kpis .value{ font-size:22px; font-weight:700; margin-top:6px; }
+.inv-kpis .value{ font-size:22px; font-weight:800; margin-top:6px; }
 
 .inv-controls{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0; }
 .inv-toggle{ display:flex; gap:8px; }
-.chip{ padding:8px 12px; border-radius:999px; border:1px solid rgba(0,0,0,.15); background:#fff; cursor:pointer; }
-.chip.active{ font-weight:700; }
+.chip{ padding:8px 12px; border-radius:999px; border:1px solid var(--border); background:#fff; cursor:pointer; }
+.chip.active{ font-weight:900; background: var(--accent-soft); border-color: rgba(37,99,235,.18); color: var(--accent); }
 
 .inv-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:12px 0; }
-
-.table-wrap{ overflow:auto; }
-.table{ width:100%; border-collapse:collapse; }
-.table th,.table td{ padding:10px; border-bottom:1px solid rgba(0,0,0,.08); white-space:nowrap; }
 
 @media (max-width: 680px){
   .inv-kpis{ grid-template-columns:1fr; }
   .inv-grid{ grid-template-columns:1fr; }
 }
 
+/* Contenuti cella (riutilizzati da JS) */
+.inv-cell-title{ font-weight: 900; line-height: 1.15; color: var(--text); }
+.inv-cell-sub{
+  margin-top: 8px;
+  display:flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.pill-mini{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background: var(--surface-soft);
+  border:1px solid var(--border);
+  font-size:12px;
+}
+.pill-mini strong{ color: var(--text); font-weight:900; }
+
+.pill-mini.pill-stock{
+  background: var(--accent-soft);
+  border-color: rgba(37,99,235,.18);
+  color: var(--accent);
+}
+
+.pill-mini.pill-exp{
+  background: rgba(245,158,11,.10);
+  border-color: rgba(245,158,11,.25);
+  color: #92400e;
+}
+.pill-mini.pill-exp.danger{
+  background: rgba(220,38,38,.08);
+  border-color: rgba(220,38,38,.25);
+  color: #991b1b;
+}
+.pill-mini.pill-exp.ok{
+  background: rgba(34,197,94,.10);
+  border-color: rgba(34,197,94,.25);
+  color: #166534;
+}
+
+/* Azioni (bottoni coerenti con tema) */
+.inv-actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; align-items:center; }
+.inv-actions .qa-btn{
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:#fff;
+  color: var(--text);
+  cursor:pointer;
+  font-weight:800;
+}
+.inv-actions .qa-btn:hover{ background: rgba(2,6,23,.03); }
+.inv-actions .qa-btn.primary{
+  background: var(--accent-soft);
+  border-color: rgba(37,99,235,.20);
+  color: var(--accent);
+  font-weight:900;
+}
+.inv-actions .qa-btn.primary:hover{ background: rgba(37,99,235,.16); }
+
+/* Inventory table: forza lo stile "standard" (evita override vecchi) */
+#tab_inventory .table-wrap{ overflow:auto; border-radius: var(--radius-sm); border:1px solid var(--border); background: var(--surface); }
+#tab_inventory table{ }
+#tab_inventory th{ background: var(--surface-soft); color:#475569; border-bottom:1px solid var(--border); }
+#tab_inventory td{ border-bottom:0px; }
+#tab_inventory tr:hover td{ background: rgba(2,6,23,.03); }
+
+@media (max-width: 680px){
+  #tab_inventory table{ min-width: 0; }
+  #tab_inventory td{ padding: 12px 12px; }
+  .inv-actions{ justify-content:flex-start; }
+}
+
+/* ===== Quick Actions modal ===== */
 .qa-modal{ position:fixed; inset:0; background:rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; padding:16px; z-index:9999; }
 .qa-modal.hidden{ display:none; }
 .qa-card{ width:min(560px, 100%); background:#fff; border-radius:16px; padding:14px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
@@ -1050,4 +907,184 @@ mark.hl{
 .qa-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
 .qa-btn{ padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,.15); background:#fff; cursor:pointer; }
 .qa-btn.primary{ font-weight:800; }
-.inv-actions{ display:flex; gap:8px; }
+
+
+/* FIX: hover row Magazzino deve coprire TUTTE le colonne (anche Azioni) */
+#tab_inventory .table-wrap tbody tr:hover > td{
+  background: rgba(2,6,23,.03) !important;
+}
+
+/* evita che qualche td “stacchi” per via di background propri */
+#tab_inventory .table-wrap tbody td{
+  background: transparent;
+}
+
+#tab_inventory .table-wrap tbody td{
+  transition: background .32s ease;
+}
+
+/* ===== FIX: hover riga Magazzino non spezzato (inv-actions) ===== */
+
+/* hover uniforme su TUTTE le celle, incluse inv-actions */
+#tab_inventory .table-wrap tbody tr:hover > td{
+  background: rgba(2,6,23,.03) !important;
+}
+
+/* la cella azioni non deve “fare buchi” */
+#tab_inventory .table-wrap td.inv-actions{
+  background: transparent;
+}
+
+/* i bottoni dentro inv-actions non devono coprire l’hover */
+#tab_inventory .table-wrap td.inv-actions .qa-btn{
+  background: transparent !important;
+  border-color: rgba(15,23,42,.12) !important; /* coerente col tema chiaro */
+}
+
+/* al passaggio del mouse: i bottoni si “tingono” leggermente ma senza staccarsi */
+#tab_inventory .table-wrap tbody tr:hover td.inv-actions .qa-btn{
+  background: rgba(2,6,23,.02) !important;
+}
+
+/* primary resta blu ma non “patch” separata */
+#tab_inventory .table-wrap tbody tr:hover td.inv-actions .qa-btn.primary{
+  background: rgba(37,99,235,.10) !important;
+  border-color: rgba(37,99,235,.22) !important;
+}
+#tab_inventory .table-wrap tbody tr:hover{
+  background: rgba(2,6,23,.03) !important;
+}
+#tab_inventory .table-wrap tbody tr:hover > td{
+  background: transparent !important;
+}
+
+@media (max-width: 680px){
+
+  /* quando JS aggiunge .mobile-cards, la tabella diventa lista card */
+  table.mobile-cards{
+  min-width: 0 !important;
+  width: 100% !important;
+  table-layout: fixed;
+  border-collapse: collapse; /* FIX: niente aria finta */
+}
+
+table.mobile-cards tbody tr.mcard{
+  margin-bottom: 0px;
+}
+
+table.mobile-cards tbody tr.mcard:last-child{
+  margin-bottom: 0;
+}
+
+#tab_inventory .table-wrap{
+  padding: 0px; /* una cornice pulita */
+}
+
+table.mobile-cards{
+  background: transparent;
+}
+  table.mobile-cards thead{
+    display: none !important;
+  }
+
+  table.mobile-cards tbody tr.mcard{
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  table.mobile-cards tbody td.mcard-td{
+    display: block;
+    padding: 12px 14px;
+    border-bottom: none;
+    background: transparent;
+  }
+
+  .mcard-top{
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .mcard-title{
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .mcard-lines{
+    margin-top: 6px;
+    display: grid;
+    gap: 3px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .mcard-right{
+    font-weight: 900;
+    white-space: nowrap;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(15,23,42,.10);
+    background: rgba(2,6,23,.03);
+  }
+
+  /* anti layout-break */
+  table.mobile-cards *{
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* hover non necessario su mobile, ma non fa danni */
+  table.mobile-cards tbody tr:hover > td{
+    background: transparent !important;
+  }
+}
+
+@media (max-width: 680px){
+  #tab_inventory .table-wrap thead{ display:none !important; }
+  #tab_inventory .table-wrap table{ min-width: 0 !important; }
+}
+
+
+/* ---------- Responsive helpers ---------- */
+.desktop-only{ display: block; }
+.mobile-only{ display: none; }
+
+@media (max-width: 680px){
+  .desktop-only{ display: none !important; }
+  .mobile-only{ display: block !important; }
+
+  /* Tabelle: meno “zoom” e niente min-width gigante */
+  table{ min-width: 0 !important; }
+  th, td{ padding: 10px 12px; font-size: 13px; }
+  .table-wrap{ -webkit-overflow-scrolling: touch; }
+}
+
+/* ---------- Mobile cards in DIV (non-table) ---------- */
+.mobile-cards{
+  display: grid;
+  gap: 12px;
+}
+.mobile-cards .mcard{
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.mobile-cards .mcard-td{
+  display: block;
+  padding: 12px 14px;
+}
+.mobile-cards .mcard-actions{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}

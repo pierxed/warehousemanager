@@ -7,22 +7,46 @@ function isMobile(){
 }
 
 function renderMobileRows(tbody, rows){
+  // attiva stile "cards" sulla tabella
+  const table = tbody.closest('table');
+  if(table) table.classList.add('mobile-cards');
+
   tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td style="padding:12px 14px;">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
-          <div>
-            <div style="font-weight:900;">${r.title}</div>
-            <div style="color:#64748b;font-size:13px;margin-top:4px;display:grid;gap:2px;">
-              ${r.lines.map(x => `<div>${x}</div>`).join("")}
+    <tr class="mcard">
+      <td class="mcard-td">
+        <div class="mcard-top">
+          <div class="mcard-left">
+            <div class="mcard-title">${r.title}</div>
+            <div class="mcard-lines">
+              ${r.lines.map(x => `<div class="mcard-line">${x}</div>`).join("")}
             </div>
           </div>
-          <div style="font-weight:900;white-space:nowrap;">${r.right ?? ""}</div>
+          ${r.right ? `<div class="mcard-right">${r.right}</div>` : ``}
         </div>
       </td>
     </tr>
-  `).join("") || `<tr><td class="muted" style="padding:12px 14px;">Nessuna</td></tr>`;
+  `).join("") || `<tr class="mcard"><td class="mcard-td muted">Nessuna</td></tr>`;
 }
+
+function renderMobileCards(container, rows){
+  if(!container) return;
+  container.innerHTML = rows.map(r => `
+    <div class="mcard">
+      <div class="mcard-td">
+        <div class="mcard-top">
+          <div class="mcard-left">
+            <div class="mcard-title">${r.title}</div>
+            <div class="mcard-lines">
+              ${r.lines.map(x => `<div class="mcard-line">${x}</div>`).join("")}
+            </div>
+          </div>
+          ${r.right ? `<div class="mcard-right">${r.right}</div>` : ``}
+        </div>
+      </div>
+    </div>
+  `).join("") || `<div class="mcard"><div class="mcard-td muted">Nessuna</div></div>`;
+}
+
 
 // ==========================
 // GLOBAL SEARCH (filter + highlight)
@@ -2099,9 +2123,14 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 // ==========================
 let INVENTORY_READY = false;
 let INVENTORY_VIEW = 'products'; // 'products' | 'lots'
+let INVENTORY_TABLE_PAGE = 1;
+const INVENTORY_TABLE_PER_PAGE = 5;
+let INVENTORY_TABLE_LAST_Q = '';
+
 
 // Movimenti (tab_inventory) - paginazione
 let INVENTORY_MOVES_PAGE = 1;
+          INVENTORY_TABLE_PAGE = 1;
 const INVENTORY_MOVES_PER_PAGE = 10;
 let INVENTORY_MOVES_READY = false;
 
@@ -2138,6 +2167,7 @@ async function loadInventoryTab(){
           Cache.inventoryData = null;
           Cache.inventoryInsights = null;
           INVENTORY_MOVES_PAGE = 1;
+          INVENTORY_TABLE_PAGE = 1;
           await loadInventoryTab();
           applyGlobalSearch();
         });
@@ -2145,6 +2175,7 @@ async function loadInventoryTab(){
 
       document.getElementById('inv_view_products')?.addEventListener('click', ()=>{
         INVENTORY_VIEW = 'products';
+        INVENTORY_TABLE_PAGE = 1;
         document.getElementById('inv_view_products')?.classList.add('active');
         document.getElementById('inv_view_lots')?.classList.remove('active');
         renderInventoryFromCache(tokenize(getGlobalQuery()));
@@ -2152,6 +2183,7 @@ async function loadInventoryTab(){
 
       document.getElementById('inv_view_lots')?.addEventListener('click', ()=>{
         INVENTORY_VIEW = 'lots';
+        INVENTORY_TABLE_PAGE = 1;
         document.getElementById('inv_view_lots')?.classList.add('active');
         document.getElementById('inv_view_products')?.classList.remove('active');
         renderInventoryFromCache(tokenize(getGlobalQuery()));
@@ -2164,7 +2196,31 @@ async function loadInventoryTab(){
         handleQuickAction(btn.dataset);
       });
 
+      document.getElementById('inv_mobile_cards')?.addEventListener('click', (e)=>{
+        const btn = e.target?.closest?.('button[data-qa]');
+        if(!btn) return;
+        handleQuickAction(btn.dataset);
+      });
+
       
+
+// tabella (prodotti/lotti) paginata (prev/next) - init una volta
+if(!window.__INV_TABLE_PAGER_READY){
+  const prevT = document.getElementById('inv_table_prev');
+  const nextT = document.getElementById('inv_table_next');
+
+  prevT?.addEventListener('click', ()=>{
+    INVENTORY_TABLE_PAGE = Math.max(1, INVENTORY_TABLE_PAGE - 1);
+    renderInventoryFromCache(tokenize(getGlobalQuery()));
+  });
+  nextT?.addEventListener('click', ()=>{
+    INVENTORY_TABLE_PAGE = INVENTORY_TABLE_PAGE + 1; // clamp in render
+    renderInventoryFromCache(tokenize(getGlobalQuery()));
+  });
+
+  window.__INV_TABLE_PAGER_READY = true;
+}
+
 // movimenti paginati (prev/next) - init una volta
 if(!INVENTORY_MOVES_READY){
   const prevBtn = document.getElementById('inv_moves_prev');
@@ -2195,6 +2251,12 @@ function renderInventoryFromCache(tokens){
   const inv = Cache.inventoryData;
   const ins = Cache.inventoryInsights;
   if(!inv || !ins) return;
+  const q = (tokens || []).join(' ').trim();
+  if(q !== INVENTORY_TABLE_LAST_Q){
+    INVENTORY_TABLE_PAGE = 1;
+    INVENTORY_TABLE_LAST_Q = q;
+  }
+
 
   // KPI filtrati dalla ricerca globale (per coerenza col resto)
   const lotsFilteredForKpi = (inv.lots_view || []).filter(r =>
@@ -2248,81 +2310,316 @@ function renderInventoryFromCache(tokens){
   renderInventoryAllMovesFromCache(tokens);
 }
 
-function renderInventoryProducts(rows, tokens){
-  const title = document.getElementById('inv_table_title');
-  if(title) title.innerText = 'Vista per prodotto';
 
+function updateInventoryTablePager(total){
+  const countEl = document.getElementById('inv_table_count');
+  const pageEl  = document.getElementById('inv_table_page');
+  const prevBtn = document.getElementById('inv_table_prev');
+  const nextBtn = document.getElementById('inv_table_next');
+
+  const pages = Math.max(1, Math.ceil(total / INVENTORY_TABLE_PER_PAGE));
+  if(INVENTORY_TABLE_PAGE > pages) INVENTORY_TABLE_PAGE = pages;
+  if(INVENTORY_TABLE_PAGE < 1) INVENTORY_TABLE_PAGE = 1;
+
+  const start = total === 0 ? 0 : ((INVENTORY_TABLE_PAGE - 1) * INVENTORY_TABLE_PER_PAGE) + 1;
+  const end   = Math.min(total, INVENTORY_TABLE_PAGE * INVENTORY_TABLE_PER_PAGE);
+
+  if(countEl) countEl.textContent = `${start}-${end} di ${total}`;
+  if(pageEl)  pageEl.textContent  = `${INVENTORY_TABLE_PAGE}/${pages}`;
+
+  if(prevBtn) prevBtn.disabled = (INVENTORY_TABLE_PAGE <= 1);
+  if(nextBtn) nextBtn.disabled = (INVENTORY_TABLE_PAGE >= pages);
+}
+
+function renderInventoryProducts(rows, tokens){
   const thead = document.getElementById('inv_thead');
   const tbody = document.getElementById('inv_tbody');
   if(!thead || !tbody) return;
 
+  const mobileC = document.getElementById('inv_mobile_cards');
+  if(mobileC) mobileC.innerHTML = '';
+
+
+  document.getElementById('inv_table_title').textContent = 'Vista per prodotto';
+
   thead.innerHTML = `
     <tr>
-      <th>Pesce</th><th>Prodotto</th><th>Formato</th><th>EAN</th>
-      <th>Stock</th><th>#Lotti</th><th>FEFO</th><th>Scad.</th><th>Azioni</th>
+      <th>Prodotto</th>
+      <th>Stock &amp; FEFO</th>
+      <th style="text-align:right;">Azioni</th>
     </tr>
   `;
+
+
+
+  // Mobile: lista card (niente tabella scroll infinita)
+  if(isMobile()){
+    const container = document.getElementById('inv_mobile_cards');
+    if(container){
+      const filtered = (rows||[]).filter(r => {
+        if(!tokens.length) return true;
+        const stockTotal = (r.stock_total ?? r.total_stock ?? 0);
+        const fefoLot = (r.fefo_lot_number ?? r.fefo_lot ?? '');
+        const fefoDate = (r.fefo_expiration_date ?? r.fefo_date ?? '');
+        return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${stockTotal} ${r.lots_count} ${fefoLot} ${fefoDate}`, tokens);
+      });
+
+      const total = filtered.length;
+      updateInventoryTablePager(total);
+
+      const startIdx = (INVENTORY_TABLE_PAGE - 1) * INVENTORY_TABLE_PER_PAGE;
+      const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
+
+      const today = new Date();
+      const expClass = (iso) => {
+        if(!iso) return 'pill-exp';
+        const d = new Date(iso);
+        if(isNaN(d)) return 'pill-exp';
+        const diff = Math.ceil((d - today) / (1000*60*60*24));
+        if(diff <= 30) return 'pill-exp danger';
+        return 'pill-exp ok';
+      };
+
+      renderMobileCards(container, pageRows.map(r => {
+        const prodName = highlightTextRaw(r.product_name||'—', tokens);
+        const fish = highlightTextRaw(r.fish_type||'—', tokens);
+        const fmt = highlightTextRaw(r.format||'—', tokens);
+        const ean = highlightTextRaw(r.ean||'—', tokens);
+
+        const stock = Number(r.stock_total ?? r.total_stock ?? 0);
+        const lotsCount = Number(r.lots_count||0);
+        const fefoLot = highlightTextRaw((r.fefo_lot_number ?? r.fefo_lot) || '—', tokens);
+        const fefoIso = (r.fefo_expiration_date ?? r.fefo_date) || '';
+        const fefoDate = highlightTextRaw(fefoIso ? formatDateIT(fefoIso) : '—', tokens);
+
+        return {
+          title: `${prodName} ${fmt ? '• ' + fmt : ''}`,
+          lines: [
+            `<span class="pill-mini">${fish}</span> <span class="pill-mini">EAN <strong>${ean}</strong></span>`,
+            `<span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span> <span class="pill-mini">Lotti <strong>${lotsCount}</strong></span>`,
+            `<span class="pill-mini">FEFO <strong>${fefoLot}</strong></span> <span class="pill-mini ${expClass(fefoIso)}">Scad. <strong>${fefoDate}</strong></span>`,
+            `<div class="mcard-actions">
+              <button type="button" class="qa-btn" data-qa="prod" data-product="${Number(r.product_id||0)}">Produci</button>
+              <button type="button" class="qa-btn primary" data-qa="sale" data-product="${Number(r.product_id||0)}">Vendi</button>
+            </div>`
+          ],
+          right: null
+        };
+      }));
+
+      // pulisci tabella desktop per evitare contenuti doppi (anche se nascosta)
+      tbody.innerHTML = '';
+    }
+    return;
+  }
 
   const filtered = (rows||[]).filter(r => {
     if(!tokens.length) return true;
-    return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.stock_total} ${r.fefo_lot_number||''} ${r.fefo_expiration_date||''}`, tokens);
+    const stockTotal = (r.stock_total ?? r.total_stock ?? 0);
+    const fefoLot = (r.fefo_lot_number ?? r.fefo_lot ?? '');
+    const fefoDate = (r.fefo_expiration_date ?? r.fefo_date ?? '');
+    return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${stockTotal} ${r.lots_count} ${fefoLot} ${fefoDate}`, tokens);
   });
 
-  tbody.innerHTML = filtered.map(r => `
-    <tr>
-      <td>${highlightTextRaw(r.fish_type||'', tokens)}</td>
-      <td>${highlightTextRaw(r.product_name||'', tokens)}</td>
-      <td>${highlightTextRaw(r.format||'', tokens)}</td>
-      <td>${highlightTextRaw(r.ean||'', tokens)}</td>
-      <td><b>${highlightTextRaw(String(r.stock_total||0), tokens)}</b></td>
-      <td>${highlightTextRaw(String(r.lots_count||0), tokens)}</td>
-      <td>${highlightTextRaw(r.fefo_lot_number||'—', tokens)}</td>
-      <td>${highlightTextRaw(r.fefo_expiration_date ? formatDateIT(r.fefo_expiration_date) : '—', tokens)}</td>
-      <td class="inv-actions">
-        <button type="button" class="qa-btn" data-qa="sale" data-product="${Number(r.product_id||0)}">Vendi</button>
-        <button type="button" class="qa-btn" data-qa="prod" data-product="${Number(r.product_id||0)}">Produci</button>
-      </td>
-    </tr>
-  `).join('') || `<tr><td colspan="9">Nessun risultato</td></tr>`;
+  const total = filtered.length;
+  updateInventoryTablePager(total);
+
+  const startIdx = (INVENTORY_TABLE_PAGE - 1) * INVENTORY_TABLE_PER_PAGE;
+  const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
+
+  const today = new Date();
+  const expClass = (iso) => {
+    if(!iso) return 'pill-exp';
+    const d = new Date(iso);
+    if(isNaN(d)) return 'pill-exp';
+    const diff = Math.ceil((d - today) / (1000*60*60*24));
+    if(diff <= 30) return 'pill-exp danger';
+    return 'pill-exp ok';
+  };
+
+  tbody.innerHTML = pageRows.map(r => {
+    const prodName = highlightTextRaw(r.product_name||'—', tokens);
+    const fish = highlightTextRaw(r.fish_type||'—', tokens);
+    const fmt = highlightTextRaw(r.format||'—', tokens);
+    const ean = highlightTextRaw(r.ean||'—', tokens);
+
+    const stock = Number(r.stock_total ?? r.total_stock ?? 0);
+    const lotsCount = Number(r.lots_count||0);
+    const fefoLot = highlightTextRaw((r.fefo_lot_number ?? r.fefo_lot) || '—', tokens);
+    const fefoIso = (r.fefo_expiration_date ?? r.fefo_date) || '';
+    const fefoDate = highlightTextRaw(fefoIso ? formatDateIT(fefoIso) : '—', tokens);
+
+    return `
+      <tr>
+        <td>
+          <div class="inv-cell-title">${prodName}</div>
+          <div class="inv-cell-sub">
+            <span class="pill-mini">${fish}</span>
+            <span class="pill-mini">${fmt}</span>
+            <span class="pill-mini">EAN&nbsp;<strong>${ean}</strong></span>
+          </div>
+        </td>
+
+        <td>
+          <div class="inv-cell-sub" style="margin-top:0;">
+            <span class="pill-mini pill-stock">Stock&nbsp;<strong>${stock}</strong></span>
+            <span class="pill-mini">Lotti&nbsp;<strong>${lotsCount}</strong></span>
+          </div>
+          <div class="inv-cell-sub" style="margin-top:8px;">
+            <span class="pill-mini">FEFO&nbsp;<strong>${fefoLot}</strong></span>
+            <span class="pill-mini ${expClass(fefoIso)}">Scad.&nbsp;<strong>${fefoDate}</strong></span>
+          </div>
+        </td>
+
+        <td class="inv-actions" style="text-align:right;">
+          <button type="button" class="qa-btn" data-qa="prod" data-product="${Number(r.product_id||0)}">Produci</button>
+          <button type="button" class="qa-btn primary" data-qa="sale" data-product="${Number(r.product_id||0)}">Vendi</button>
+        </td>
+      </tr>
+    `;
+  }).join('') || `<tr><td colspan="3">Nessun risultato</td></tr>`;
 }
 
-function renderInventoryLots(rows, tokens){
-  const title = document.getElementById('inv_table_title');
-  if(title) title.innerText = 'Vista per lotti';
 
+function renderInventoryLots(rows, tokens){
   const thead = document.getElementById('inv_thead');
   const tbody = document.getElementById('inv_tbody');
   if(!thead || !tbody) return;
 
+  const mobileC = document.getElementById('inv_mobile_cards');
+  if(mobileC) mobileC.innerHTML = '';
+
+
+  document.getElementById('inv_table_title').textContent = 'Vista per lotto';
+
   thead.innerHTML = `
     <tr>
-      <th>Pesce</th><th>Prodotto</th><th>Formato</th><th>Lotto</th>
-      <th>Stock</th><th>Prod.</th><th>Scad.</th><th>Azioni</th>
+      <th>Lotto</th>
+      <th>Stock &amp; Date</th>
+      <th style="text-align:right;">Azioni</th>
     </tr>
   `;
+
+
+
+  // Mobile: lista card (niente tabella scroll infinita)
+  if(isMobile()){
+    const container = document.getElementById('inv_mobile_cards');
+    if(container){
+      const filtered = (rows||[]).filter(r => {
+        if(!tokens.length) return true;
+        return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.lot_number} ${r.stock} ${r.production_date||''} ${r.expiration_date||''}`, tokens);
+      });
+
+      const total = filtered.length;
+      updateInventoryTablePager(total);
+
+      const startIdx = (INVENTORY_TABLE_PAGE - 1) * INVENTORY_TABLE_PER_PAGE;
+      const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
+
+      const today = new Date();
+      const expClass = (iso) => {
+        if(!iso) return 'pill-exp';
+        const d = new Date(iso);
+        if(isNaN(d)) return 'pill-exp';
+        const diff = Math.ceil((d - today) / (1000*60*60*24));
+        if(diff <= 30) return 'pill-exp danger';
+        return 'pill-exp ok';
+      };
+
+      renderMobileCards(container, pageRows.map(r => {
+        const lotNumber = highlightTextRaw(r.lot_number||'—', tokens);
+        const prodName = highlightTextRaw(r.product_name||'—', tokens);
+        const fish = highlightTextRaw(r.fish_type||'—', tokens);
+        const fmt = highlightTextRaw(r.format||'—', tokens);
+        const ean = highlightTextRaw(r.ean||'—', tokens);
+        const stock = highlightTextRaw(String(r.stock||0), tokens);
+        const prodDate = highlightTextRaw(r.production_date ? formatDateIT(r.production_date) : '—', tokens);
+        const expIso = r.expiration_date || '';
+        const expDate = highlightTextRaw(expIso ? formatDateIT(expIso) : '—', tokens);
+
+        return {
+          title: `Lotto ${lotNumber}`,
+          lines: [
+            `<span class="pill-mini">${prodName}</span> <span class="pill-mini">${fish}</span> <span class="pill-mini">${fmt}</span> <span class="pill-mini">EAN <strong>${ean}</strong></span>`,
+            `<span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span>`,
+            `<span class="pill-mini">Prod. <strong>${prodDate}</strong></span> <span class="pill-mini ${expClass(expIso)}">Scad. <strong>${expDate}</strong></span>`,
+            `<div class="mcard-actions">
+              <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
+              <button type="button" class="qa-btn primary" data-qa="sale_lot" data-product="${Number(r.product_id||0)}" data-lot="${Number(r.lot_id||0)}">Vendi lotto</button>
+            </div>`
+          ],
+          right: null
+        };
+      }));
+
+      tbody.innerHTML = '';
+    }
+    return;
+  }
 
   const filtered = (rows||[]).filter(r => {
     if(!tokens.length) return true;
     return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.lot_number} ${r.stock} ${r.production_date||''} ${r.expiration_date||''}`, tokens);
   });
 
-  tbody.innerHTML = filtered.map(r => `
-    <tr>
-      <td>${highlightTextRaw(r.fish_type||'', tokens)}</td>
-      <td>${highlightTextRaw(r.product_name||'', tokens)}</td>
-      <td>${highlightTextRaw(r.format||'', tokens)}</td>
-      <td><b>${highlightTextRaw(r.lot_number||'', tokens)}</b></td>
-      <td>${highlightTextRaw(String(r.stock||0), tokens)}</td>
-      <td>${highlightTextRaw(r.production_date ? formatDateIT(r.production_date) : '—', tokens)}</td>
-      <td>${highlightTextRaw(r.expiration_date ? formatDateIT(r.expiration_date) : '—', tokens)}</td>
-      <td class="inv-actions">
-        <button type="button" class="qa-btn" data-qa="sale_lot" data-product="${Number(r.product_id||0)}" data-lot="${Number(r.lot_id||0)}">Vendi lotto</button>
-        <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
-      </td>
-    </tr>
-  `).join('') || `<tr><td colspan="8">Nessun risultato</td></tr>`;
-}
+  const total = filtered.length;
+  updateInventoryTablePager(total);
 
+  const startIdx = (INVENTORY_TABLE_PAGE - 1) * INVENTORY_TABLE_PER_PAGE;
+  const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
+
+  const today = new Date();
+  const expClass = (iso) => {
+    if(!iso) return 'pill-exp';
+    const d = new Date(iso);
+    if(isNaN(d)) return 'pill-exp';
+    const diff = Math.ceil((d - today) / (1000*60*60*24));
+    if(diff <= 30) return 'pill-exp danger';
+    return 'pill-exp ok';
+  };
+
+  tbody.innerHTML = pageRows.map(r => {
+    const lotNumber = highlightTextRaw(r.lot_number||'—', tokens);
+    const prodName = highlightTextRaw(r.product_name||'—', tokens);
+    const fish = highlightTextRaw(r.fish_type||'—', tokens);
+    const fmt = highlightTextRaw(r.format||'—', tokens);
+    const ean = highlightTextRaw(r.ean||'—', tokens);
+    const stock = highlightTextRaw(String(r.stock||0), tokens);
+    const prodDate = highlightTextRaw(r.production_date ? formatDateIT(r.production_date) : '—', tokens);
+    const expIso = r.expiration_date || '';
+    const expDate = highlightTextRaw(expIso ? formatDateIT(expIso) : '—', tokens);
+
+    return `
+      <tr>
+        <td>
+          <div class="inv-cell-title">${lotNumber}</div>
+          <div class="inv-cell-sub">
+            <span class="pill-mini">${prodName}</span>
+            <span class="pill-mini">${fish}</span>
+            <span class="pill-mini">${fmt}</span>
+            <span class="pill-mini">EAN&nbsp;<strong>${ean}</strong></span>
+          </div>
+        </td>
+
+        <td>
+          <div class="inv-cell-sub" style="margin-top:0;">
+            <span class="pill-mini pill-stock">Stock&nbsp;<strong>${stock}</strong></span>
+          </div>
+          <div class="inv-cell-sub" style="margin-top:8px;">
+            <span class="pill-mini">Prod.&nbsp;<strong>${prodDate}</strong></span>
+            <span class="pill-mini ${expClass(expIso)}">Scad.&nbsp;<strong>${expDate}</strong></span>
+          </div>
+        </td>
+
+        <td class="inv-actions" style="text-align:right;">
+          <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
+          <button type="button" class="qa-btn primary" data-qa="sale_lot" data-product="${Number(r.product_id||0)}" data-lot="${Number(r.lot_id||0)}">Vendi lotto</button>
+        </td>
+      </tr>
+    `;
+  }).join('') || `<tr><td colspan="3">Nessun risultato</td></tr>`;
+}
 
 
 // ==========================
@@ -2388,44 +2685,51 @@ function renderInventoryAllMovesFromCache(tokens){
   if(nextBtn) nextBtn.disabled = INVENTORY_MOVES_PAGE >= totalPages;
 
   movesTb.innerHTML = '';
+  const mobileC = document.getElementById('inv_moves_mobile_cards');
+  if(mobileC) mobileC.innerHTML = '';
+
 
   if(isMobile()){
-    renderMobileRows(movesTb, pageRows.map(m => {
-      const lot = lotById.get(Number(m.lot_id)) || null;
+    const container = document.getElementById('inv_moves_mobile_cards');
+    if(container){
+      renderMobileCards(container, pageRows.map(m => {
+        const lot = lotById.get(Number(m.lot_id)) || null;
 
-      const typeClass =
-        m.type === 'SALE'
-          ? 'sale'
-          : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
+        const typeClass =
+          m.type === 'SALE'
+            ? 'sale'
+            : (m.type === 'PRODUCTION' ? 'production' : (m.type === 'ADJUSTMENT' ? 'adjustment' : ''));
 
-      const expiration = lot?.expiration_date
-        ? formatDateIT(lot.expiration_date)
-        : '—';
+        const expiration = lot?.expiration_date
+          ? formatDateIT(lot.expiration_date)
+          : '—';
 
-      const qty = Number(m.quantity)||0;
-      const qtyDisplay =
-        m.type === 'SALE'
-          ? `−${Math.abs(qty)}`
-          : (m.type === 'ADJUSTMENT'
-              ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
-              : `+${Math.abs(qty)}`);
+        const qty = Number(m.quantity)||0;
+        const qtyDisplay =
+          m.type === 'SALE'
+            ? `−${Math.abs(qty)}`
+            : (m.type === 'ADJUSTMENT'
+                ? (qty < 0 ? `−${Math.abs(qty)}` : `+${Math.abs(qty)}`)
+                : `+${Math.abs(qty)}`);
 
-      const reasonTxt = (m.type === 'ADJUSTMENT' && m.reason)
-        ? `Motivo: <strong>${highlightTextRaw(String(m.reason).replaceAll('_',' '), tokens)}</strong>`
-        : null;
+        const reasonTxt = (m.type === 'ADJUSTMENT' && m.reason)
+          ? `Motivo: <strong>${highlightTextRaw(String(m.reason).replaceAll('_',' '), tokens)}</strong>`
+          : null;
 
-      return {
-        title: `${highlightTextRaw(lot?.product_name || '—', tokens)} ${lot?.format ? '• ' + highlightTextRaw(lot.format, tokens) : ''}`,
-        lines: [
-          `<span class="badge-move ${typeClass}">${highlightTextRaw(typeLabel(m.type), tokens)}</span> • <strong>${highlightTextRaw(formatDateIT(m.created_at), tokens)}</strong>`,
-          `Lotto: <strong>${highlightTextRaw(lot?.lot_number || '—', tokens)}</strong>`,
-          `Scadenza: <strong>${highlightTextRaw(expiration, tokens)}</strong>`,
-          ...(reasonTxt ? [reasonTxt] : []),
-          ...(m.type === 'ADJUSTMENT' && m.note ? [`Nota: ${highlightTextRaw(String(m.note), tokens)}`] : [])
-        ],
-        right: highlightTextRaw(qtyDisplay, tokens)
-      };
-    }));
+        return {
+          title: `${highlightTextRaw(lot?.product_name || '—', tokens)} ${lot?.format ? '• ' + highlightTextRaw(lot.format, tokens) : ''}`,
+          lines: [
+            `<span class="badge-move ${typeClass}">${highlightTextRaw(typeLabel(m.type), tokens)}</span> • <strong>${highlightTextRaw(formatDateIT(m.created_at), tokens)}</strong>`,
+            `Lotto: <strong>${highlightTextRaw(lot?.lot_number || '—', tokens)}</strong>`,
+            `Scadenza: <strong>${highlightTextRaw(expiration, tokens)}</strong>`,
+            ...(reasonTxt ? [reasonTxt] : []),
+            ...(m.type === 'ADJUSTMENT' && m.note ? [`Nota: ${highlightTextRaw(String(m.note), tokens)}`] : [])
+          ],
+          right: highlightTextRaw(qtyDisplay, tokens)
+        };
+      }));
+    }
+    movesTb.innerHTML = '';
     return;
   }
 
@@ -2562,6 +2866,7 @@ async function refreshAllAfterAction(){
   Cache.inventoryData = null;
   Cache.inventoryInsights = null;
   INVENTORY_MOVES_PAGE = 1;
+          INVENTORY_TABLE_PAGE = 1;
   if(isTabActive('tab_inventory')) await loadInventoryTab();
 
   // se l'utente sta su rettifiche, aggiorna anche quella tab
