@@ -176,7 +176,9 @@ async function saveSettingsFromForm(){
     // Ricarica Home per rifare i filtri scadenze
     await loadHomeDashboard();
     if(Cache.inventoryData && Cache.inventoryInsights){
-      renderInventoryFromCache(tokenize(getGlobalQuery()));
+      initInventoryFilterBar();
+    refreshInventoryFilterOptions();
+    renderInventoryFromCache(getInventoryTokens());
     }
     applyGlobalSearch();
 
@@ -277,6 +279,16 @@ function getGlobalQuery(){
 function tokenize(q){
   return String(q || '').trim().split(/\s+/).filter(Boolean).slice(0, 8);
 }
+
+// Debounce: utile su mobile (evita ricalcoli continui mentre scrivi)
+function debounce(fn, wait){
+  let t = null;
+  return function(...args){
+    clearTimeout(t);
+    t = setTimeout(()=> fn.apply(this, args), wait);
+  };
+}
+
 function matchesTokens(haystack, tokens){
   const h = String(haystack || '').toLowerCase();
   return tokens.every(t => h.includes(String(t).toLowerCase()));
@@ -1782,6 +1794,12 @@ function renderProductsFromRows(rows, tokens){
 
       await loadProducts();
       await loadProductsTable();
+
+      // Invalida cache Magazzino: stato prodotto (is_active) è cambiato
+      Cache.inventoryData = null;
+      Cache.inventoryInsights = null;
+      if(isTabActive('tab_inventory')) await loadInventoryTab();
+
       applyGlobalSearch();
     });
 
@@ -1824,6 +1842,12 @@ function renderProductsFromRows(rows, tokens){
 
       await loadProducts();
       await loadProductsTable();
+
+      // Invalida cache Magazzino: stato prodotto (is_active) è cambiato
+      Cache.inventoryData = null;
+      Cache.inventoryInsights = null;
+      if(isTabActive('tab_inventory')) await loadInventoryTab();
+
       applyGlobalSearch();
     });
 
@@ -1865,6 +1889,12 @@ function renderProductsFromRows(rows, tokens){
 
       await loadProducts();
       await loadProductsTable();
+
+      // Invalida cache Magazzino: stato prodotto (is_active) è cambiato
+      Cache.inventoryData = null;
+      Cache.inventoryInsights = null;
+      if(isTabActive('tab_inventory')) await loadInventoryTab();
+
       applyGlobalSearch();
     });
 
@@ -2317,6 +2347,12 @@ if(lastTabId){
 
       await loadProducts();
       await loadProductsTable();
+
+      // Invalida cache Magazzino: stato prodotto (is_active) è cambiato
+      Cache.inventoryData = null;
+      Cache.inventoryInsights = null;
+      if(isTabActive('tab_inventory')) await loadInventoryTab();
+
       applyGlobalSearch();
 
     }catch(err){
@@ -2411,6 +2447,303 @@ const INVENTORY_TABLE_PER_PAGE = 5;
 let INVENTORY_TABLE_LAST_Q = '';
 
 
+// ==========================
+// INVENTORY: FILTRI (Magazzino) + persistenza
+// ==========================
+const INV_FILTERS_KEY = 'wm_inv_filters_v1';
+
+const DEFAULT_INV_FILTERS = {
+  search: '',
+  fishType: '',
+  chips: {
+    expiring: false,
+    lowStock: false,
+    zeroStock: false,
+    onlyFefo: false,
+    onlyActive: true, // default: nascondi archiviati
+  },
+  sortProducts: 'expiry',
+  sortLots: 'expiry',
+};
+
+let INVENTORY_FILTERS = loadInvFilters();
+
+function loadInvFilters(){
+  try{
+    const raw = localStorage.getItem(INV_FILTERS_KEY);
+    if(!raw) return JSON.parse(JSON.stringify(DEFAULT_INV_FILTERS));
+    const obj = JSON.parse(raw);
+    // merge safe (non fidarti troppo)
+    const merged = JSON.parse(JSON.stringify(DEFAULT_INV_FILTERS));
+    if(obj && typeof obj === 'object'){
+      if(typeof obj.search === 'string') merged.search = obj.search;
+      if(typeof obj.fishType === 'string') merged.fishType = obj.fishType;
+      if(obj.chips && typeof obj.chips === 'object'){
+        for(const k of Object.keys(merged.chips)){
+          if(typeof obj.chips[k] === 'boolean') merged.chips[k] = obj.chips[k];
+        }
+      }
+      if(typeof obj.sortProducts === 'string') merged.sortProducts = obj.sortProducts;
+      if(typeof obj.sortLots === 'string') merged.sortLots = obj.sortLots;
+    }
+    return merged;
+  }catch(_){
+    return JSON.parse(JSON.stringify(DEFAULT_INV_FILTERS));
+  }
+}
+
+function saveInvFilters(){
+  try{
+    localStorage.setItem(INV_FILTERS_KEY, JSON.stringify(INVENTORY_FILTERS));
+  }catch(_){}
+}
+
+function invIsEanQuery(q){
+  const s = String(q||'').trim();
+  return /^[0-9]{8,14}$/.test(s);
+}
+
+function getInventoryEffectiveQuery(){
+  // combinazione: global + magazzino (così la barra globale non “smette” di funzionare)
+  const g = getGlobalQuery();
+  const s = String(INVENTORY_FILTERS.search || '').trim();
+  return `${g} ${s}`.trim();
+}
+
+function getInventoryTokens(){
+  return tokenize(getInventoryEffectiveQuery());
+}
+
+function invDaysUntil(iso){
+  if(!iso) return null;
+  const d = new Date(String(iso).slice(0,10));
+  if(isNaN(d)) return null;
+  const today = new Date();
+  // normalizza a "oggi"
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.ceil((d0 - t0) / (1000*60*60*24));
+}
+
+function invIsExpiring(iso){
+  const days = invDaysUntil(iso);
+  if(days === null) return false;
+  const limit = Number(SETTINGS.expiry_alert_days || 0);
+  return days >= 0 && days <= limit;
+}
+
+function invLowStockEnabled(){
+  return !!SETTINGS.low_stock_alert_enabled && Number(SETTINGS.low_stock_threshold_units || 0) > 0;
+}
+
+// product_id -> is_active (true/false) map (safe)
+function invGetProductActiveMap(){
+  const inv = Cache.inventoryData;
+  const map = new Map();
+  const rows = (inv?.products_agg || inv?.products || []);
+  for(const r of rows){
+    const pid = String(r.product_id ?? r.id ?? '');
+    if(!pid) continue;
+    map.set(pid, Number(r.is_active) === 1);
+  }
+  return map;
+}
+
+// Init UI una volta sola
+let INVENTORY_FILTER_UI_READY = false;
+const invApplyDebounced = debounce(()=> {
+  INVENTORY_TABLE_PAGE = 1;
+  renderInventoryFromCache(getInventoryTokens());
+  saveInvFilters();
+}, 200);
+
+function initInventoryFilterBar(){
+  if(INVENTORY_FILTER_UI_READY) return;
+
+  const searchEl = document.getElementById('inv_search');
+  const clearEl  = document.getElementById('inv_search_clear');
+  const fishEl   = document.getElementById('inv_fish_type');
+  const sortEl   = document.getElementById('inv_sort');
+  const chipsEl  = document.getElementById('inv_chips');
+
+  if(searchEl){
+    searchEl.value = INVENTORY_FILTERS.search || '';
+    searchEl.addEventListener('input', ()=>{
+      INVENTORY_FILTERS.search = searchEl.value || '';
+      invApplyDebounced();
+    });
+  }
+
+  if(clearEl){
+    const syncClearBtn = ()=>{
+      if(!searchEl) return;
+      clearEl.style.display = (searchEl.value || '').trim() ? 'inline-block' : 'none';
+    };
+    syncClearBtn();
+    searchEl?.addEventListener('input', syncClearBtn);
+    clearEl.addEventListener('click', ()=>{
+      if(searchEl) searchEl.value = '';
+      INVENTORY_FILTERS.search = '';
+      invApplyDebounced();
+      syncClearBtn();
+    });
+  }
+
+  if(fishEl){
+    fishEl.addEventListener('change', ()=>{
+      INVENTORY_FILTERS.fishType = fishEl.value || '';
+      INVENTORY_TABLE_PAGE = 1;
+      renderInventoryFromCache(getInventoryTokens());
+      saveInvFilters();
+    });
+  }
+
+  if(sortEl){
+    sortEl.addEventListener('change', ()=>{
+      if(INVENTORY_VIEW === 'lots') INVENTORY_FILTERS.sortLots = sortEl.value || 'expiry';
+      else INVENTORY_FILTERS.sortProducts = sortEl.value || 'expiry';
+      INVENTORY_TABLE_PAGE = 1;
+      renderInventoryFromCache(getInventoryTokens());
+      saveInvFilters();
+    });
+  }
+
+  if(chipsEl){
+    chipsEl.addEventListener('click', (e)=>{
+      const btn = e.target?.closest?.('button[data-inv-chip]');
+      if(!btn) return;
+      const key = btn.dataset.invChip;
+
+      if(key === 'reset'){
+        INVENTORY_FILTERS = JSON.parse(JSON.stringify(DEFAULT_INV_FILTERS));
+        // mantieni vista corrente
+        INVENTORY_FILTERS.sortLots = DEFAULT_INV_FILTERS.sortLots;
+        INVENTORY_FILTERS.sortProducts = DEFAULT_INV_FILTERS.sortProducts;
+        applyInventoryFilterUiFromState();
+        INVENTORY_TABLE_PAGE = 1;
+        renderInventoryFromCache(getInventoryTokens());
+        saveInvFilters();
+        return;
+      }
+
+      // chip che non hanno senso nella vista corrente: ignorale
+      if(INVENTORY_VIEW === 'products' && key === 'onlyFefo') return;
+
+      if(key === 'lowStock' && !invLowStockEnabled()) return;
+
+      if(key in INVENTORY_FILTERS.chips){
+        INVENTORY_FILTERS.chips[key] = !INVENTORY_FILTERS.chips[key];
+        applyInventoryFilterUiFromState();
+        INVENTORY_TABLE_PAGE = 1;
+        renderInventoryFromCache(getInventoryTokens());
+        saveInvFilters();
+      }
+    });
+  }
+
+  INVENTORY_FILTER_UI_READY = true;
+}
+
+// Popola dropdown (tipo pesce) e sort options in base ai dati
+function refreshInventoryFilterOptions(){
+  const fishEl = document.getElementById('inv_fish_type');
+  const sortEl = document.getElementById('inv_sort');
+
+  const inv = Cache.inventoryData;
+  if(!inv) return;
+
+  // fish types
+  if(fishEl){
+    const rows = (inv.products_agg || []).length ? (inv.products_agg || []) : (inv.lots_view || []);
+    const set = new Set();
+    for(const r of rows){
+      const ft = String(r.fish_type || '').trim();
+      if(ft) set.add(ft);
+    }
+    const types = Array.from(set).sort((a,b)=> a.localeCompare(b,'it',{sensitivity:'base'}));
+
+    const current = INVENTORY_FILTERS.fishType || '';
+    fishEl.innerHTML = `<option value="">Tutti</option>` + types.map(t=> `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    // restore selection (se non esiste più -> Tutti)
+    if(types.includes(current)) fishEl.value = current;
+    else fishEl.value = '';
+    INVENTORY_FILTERS.fishType = fishEl.value || '';
+  }
+
+  // sort options
+  if(sortEl){
+    const opts = (INVENTORY_VIEW === 'lots')
+      ? [
+          ['expiry','Scadenza più vicina'],
+          ['lot','Lotto'],
+          ['product','Prodotto'],
+        ]
+      : [
+          ['expiry','Scadenza più vicina'],
+          ['stock','Stock crescente'],
+          ['name','Nome A→Z'],
+          ['fish','Tipo pesce'],
+        ];
+
+    sortEl.innerHTML = opts.map(([v,l])=> `<option value="${v}">${l}</option>`).join('');
+    const v = (INVENTORY_VIEW === 'lots') ? (INVENTORY_FILTERS.sortLots || 'expiry') : (INVENTORY_FILTERS.sortProducts || 'expiry');
+    sortEl.value = opts.some(o=>o[0]===v) ? v : 'expiry';
+    if(INVENTORY_VIEW === 'lots') INVENTORY_FILTERS.sortLots = sortEl.value;
+    else INVENTORY_FILTERS.sortProducts = sortEl.value;
+  }
+
+  applyInventoryFilterUiFromState();
+}
+
+// Sync UI chips + inputs da stato
+function applyInventoryFilterUiFromState(){
+  const searchEl = document.getElementById('inv_search');
+  const fishEl = document.getElementById('inv_fish_type');
+  const sortEl = document.getElementById('inv_sort');
+
+  if(searchEl && searchEl.value !== (INVENTORY_FILTERS.search||'')) searchEl.value = INVENTORY_FILTERS.search || '';
+  if(fishEl) fishEl.value = INVENTORY_FILTERS.fishType || '';
+
+  if(sortEl){
+    sortEl.value = (INVENTORY_VIEW === 'lots')
+      ? (INVENTORY_FILTERS.sortLots || 'expiry')
+      : (INVENTORY_FILTERS.sortProducts || 'expiry');
+  }
+
+  const chips = document.querySelectorAll('#inv_chips button[data-inv-chip]');
+  chips.forEach(btn=>{
+    const k = btn.dataset.invChip;
+    if(k === 'reset') return;
+    const isActive = !!INVENTORY_FILTERS.chips[k];
+    btn.classList.toggle('active', isActive);
+
+    // visibilità / disabilitazione
+    if(INVENTORY_VIEW === 'lots'){
+      // "Solo attivi" ora vale anche per i lotti (nasconde lotti di prodotti archiviati)
+      btn.style.display = '';
+    }else{
+      btn.style.display = (k === 'onlyFefo') ? 'none' : '';
+    }
+
+    if(k === 'lowStock'){
+      const disabled = !invLowStockEnabled();
+      btn.classList.toggle('disabled', disabled);
+      btn.title = disabled ? 'Alert scorte minime disattivato nelle Impostazioni' : '';
+    }else{
+      btn.classList.remove('disabled');
+      btn.title = '';
+    }
+  });
+}
+
+function updateInventoryFilterMeta(shown, total){
+  const meta = document.getElementById('inv_filter_meta');
+  if(!meta) return;
+  meta.textContent = `Mostrati ${shown} / ${total}`;
+}
+
+
+
 // Movimenti (tab_inventory) - paginazione
 let INVENTORY_MOVES_PAGE = 1;
           INVENTORY_TABLE_PAGE = 1;
@@ -2419,7 +2752,7 @@ let INVENTORY_MOVES_READY = false;
 
 async function loadInventoryTab(){
   try{
-    const days = Number(document.getElementById('inv_days_filter')?.value || 0);
+    const days = 0; // filtro giorni rimosso: ora usiamo chip + impostazioni
 
     // usa cache se già presente (così ricerca globale non rifà API)
     let inv = Cache.inventoryData;
@@ -2427,7 +2760,7 @@ async function loadInventoryTab(){
 
     if(!inv || !ins){
       const res = await Promise.all([
-        fetchJSON('api_inventory.php?days=' + encodeURIComponent(days)),
+        fetchJSON('api_inventory.php'),
         fetchJSON('api_inventory_insights.php')
       ]);
       inv = res[0];
@@ -2444,29 +2777,21 @@ async function loadInventoryTab(){
     if(inv?.success === false) throw new Error(inv.error || 'Errore api_inventory');
     if(ins?.success === false) throw new Error(ins.error || 'Errore api_inventory_insights');
 
-    renderInventoryFromCache(tokenize(getGlobalQuery()));
+    initInventoryFilterBar();
+    refreshInventoryFilterOptions();
+    renderInventoryFromCache(getInventoryTokens());
 
     // init listeners una volta sola
     if(!INVENTORY_READY){
-      const daysSel = document.getElementById('inv_days_filter');
-      if(daysSel){
-        daysSel.addEventListener('change', async ()=>{
-          // reset cache perché cambia dataset
-          Cache.inventoryData = null;
-          Cache.inventoryInsights = null;
-          INVENTORY_MOVES_PAGE = 1;
-          INVENTORY_TABLE_PAGE = 1;
-          await loadInventoryTab();
-          applyGlobalSearch();
-        });
-      }
-
+      
       document.getElementById('inv_view_products')?.addEventListener('click', ()=>{
         INVENTORY_VIEW = 'products';
         INVENTORY_TABLE_PAGE = 1;
         document.getElementById('inv_view_products')?.classList.add('active');
         document.getElementById('inv_view_lots')?.classList.remove('active');
-        renderInventoryFromCache(tokenize(getGlobalQuery()));
+        initInventoryFilterBar();
+    refreshInventoryFilterOptions();
+    renderInventoryFromCache(getInventoryTokens());
       });
 
       document.getElementById('inv_view_lots')?.addEventListener('click', ()=>{
@@ -2474,7 +2799,9 @@ async function loadInventoryTab(){
         INVENTORY_TABLE_PAGE = 1;
         document.getElementById('inv_view_lots')?.classList.add('active');
         document.getElementById('inv_view_products')?.classList.remove('active');
-        renderInventoryFromCache(tokenize(getGlobalQuery()));
+        initInventoryFilterBar();
+    refreshInventoryFilterOptions();
+    renderInventoryFromCache(getInventoryTokens());
       });
 
       // event delegation per bottoni azioni (evita duplicazioni)
@@ -2499,11 +2826,11 @@ if(!window.__INV_TABLE_PAGER_READY){
 
   prevT?.addEventListener('click', ()=>{
     INVENTORY_TABLE_PAGE = Math.max(1, INVENTORY_TABLE_PAGE - 1);
-    renderInventoryFromCache(tokenize(getGlobalQuery()));
+    renderInventoryFromCache(getInventoryTokens());
   });
   nextT?.addEventListener('click', ()=>{
     INVENTORY_TABLE_PAGE = INVENTORY_TABLE_PAGE + 1; // clamp in render
-    renderInventoryFromCache(tokenize(getGlobalQuery()));
+    renderInventoryFromCache(getInventoryTokens());
   });
 
   window.__INV_TABLE_PAGER_READY = true;
@@ -2547,9 +2874,19 @@ function renderInventoryFromCache(tokens){
 
 
   // KPI filtrati dalla ricerca globale (per coerenza col resto)
-  const lotsFilteredForKpi = (inv.lots_view || []).filter(r =>
-    !tokens.length || matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.lot_number}`, tokens)
-  );
+  const fishFilter = String(INVENTORY_FILTERS.fishType||'').trim();
+  const onlyFefoForKpi = (INVENTORY_VIEW === 'lots') && !!INVENTORY_FILTERS.chips.onlyFefo;
+
+  const lotsFilteredForKpi = (inv.lots_view || []).filter(r => {
+    if(fishFilter && String(r.fish_type||'').trim() !== fishFilter) return false;
+    if(onlyFefoForKpi){
+      const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(r.product_id)) || "";
+      const isFefo = fefoLotId !== "" && String(r.lot_id) === String(fefoLotId);
+      if(!isFefo) return false;
+    }
+    if(!tokens.length) return true;
+    return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.lot_number}`, tokens);
+  });
 
   const totalStock = lotsFilteredForKpi.reduce((s,r)=> s + Math.max(0, Number(r.stock)||0), 0);
   const kTotal = document.getElementById('inv_kpi_total_stock');
@@ -2558,12 +2895,26 @@ function renderInventoryFromCache(tokens){
   const exp7All = (ins.expiring_7d || []);
   const exp30All = (ins.expiring_30d || []);
 
-  const exp7 = exp7All.filter(x =>
-    !tokens.length || matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean} ${x.lot_number}`, tokens)
-  );
-  const exp30 = exp30All.filter(x =>
-    !tokens.length || matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean} ${x.lot_number}`, tokens)
-  );
+  const exp7 = exp7All.filter(x => {
+    if(fishFilter && String(x.fish_type||'').trim() !== fishFilter) return false;
+    if(onlyFefoForKpi){
+      const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(x.product_id)) || "";
+      const isFefo = fefoLotId !== "" && String(x.lot_id) === String(fefoLotId);
+      if(!isFefo) return false;
+    }
+    if(!tokens.length) return true;
+    return matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean} ${x.lot_number}`, tokens);
+  });
+  const exp30 = exp30All.filter(x => {
+    if(fishFilter && String(x.fish_type||'').trim() !== fishFilter) return false;
+    if(onlyFefoForKpi){
+      const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(x.product_id)) || "";
+      const isFefo = fefoLotId !== "" && String(x.lot_id) === String(fefoLotId);
+      if(!isFefo) return false;
+    }
+    if(!tokens.length) return true;
+    return matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean} ${x.lot_number}`, tokens);
+  });
 
   const k7 = document.getElementById('inv_kpi_exp7');
   const k30 = document.getElementById('inv_kpi_exp30');
@@ -2582,9 +2933,11 @@ function renderInventoryFromCache(tokens){
   // Runout forecast (filtrato)
   const runoutEl = document.getElementById('inv_runout');
   if(runoutEl){
-    const run = (ins.runout_forecast || []).filter(x =>
-      !tokens.length || matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean}`, tokens)
-    ).slice(0,6);
+    const run = (ins.runout_forecast || []).filter(x => {
+      if(fishFilter && String(x.fish_type||'').trim() !== fishFilter) return false;
+      if(!tokens.length) return true;
+      return matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean}`, tokens);
+    }).slice(0,6);
     runoutEl.innerHTML = run.length
       ? run.map(x => `⏳ <b>${highlightTextRaw(x.product_name, tokens)}</b> • ${highlightTextRaw(x.format||'', tokens)} • ~<b>${x.days_left} giorni</b> • stock ${x.stock_total}`).join('<br>')
       : `<span class="muted">Nessuna previsione (poche vendite recenti).</span>`;
@@ -2621,6 +2974,174 @@ function updateInventoryTablePager(total){
   if(nextBtn) nextBtn.disabled = (INVENTORY_TABLE_PAGE >= pages);
 }
 
+function filterAndSortInventoryProducts(rows, tokens){
+  const q = String(INVENTORY_FILTERS.search||'').trim();
+  const isEan = invIsEanQuery(q);
+
+  const fishFilter = String(INVENTORY_FILTERS.fishType||'').trim();
+  const onlyActive = !!INVENTORY_FILTERS.chips.onlyActive;
+  const expiring = !!INVENTORY_FILTERS.chips.expiring;
+  const lowStock = !!INVENTORY_FILTERS.chips.lowStock && invLowStockEnabled();
+  const zeroStock = !!INVENTORY_FILTERS.chips.zeroStock;
+
+  let out = (rows||[]).filter(r=>{
+    // tipo pesce
+    if(fishFilter && String(r.fish_type||'').trim() !== fishFilter) return false;
+
+    // solo attivi (se disponibile)
+    if(onlyActive && 'is_active' in r){
+      if(Number(r.is_active) !== 1) return false;
+    }
+
+    const stock = Number(r.stock_total ?? r.total_stock ?? 0);
+
+    if(lowStock){
+      const thr = Number(SETTINGS.low_stock_threshold_units||0);
+      if(!(stock <= thr)) return false;
+    }
+    if(zeroStock){
+      if(!(stock === 0)) return false;
+    }
+
+    if(expiring){
+      const iso = (r.fefo_expiration_date ?? r.fefo_date) || '';
+      if(!invIsExpiring(iso)) return false;
+    }
+
+    // search
+    if(!tokens || !tokens.length) return true;
+    const fefoLot = (r.fefo_lot_number ?? r.fefo_lot ?? '');
+    const fefoDate = (r.fefo_expiration_date ?? r.fefo_date ?? '');
+    const hay = `${r.product_name} ${r.format} ${r.fish_type} ${r.ean} ${fefoLot} ${fefoDate} ${stock} ${r.lots_count||0}`;
+    if(isEan){
+      const ean = String(r.ean||'').replace(/\s+/g,'');
+      return ean.includes(q);
+    }
+    return matchesTokens(hay, tokens);
+  });
+
+  // sort
+  const sortKey = INVENTORY_FILTERS.sortProducts || 'expiry';
+  out.sort((a,b)=>{
+    if(sortKey === 'stock'){
+      const sa = Number(a.stock_total ?? a.total_stock ?? 0);
+      const sb = Number(b.stock_total ?? b.total_stock ?? 0);
+      return sa - sb;
+    }
+    if(sortKey === 'name'){
+      return String(a.product_name||'').localeCompare(String(b.product_name||''),'it',{sensitivity:'base'});
+    }
+    if(sortKey === 'fish'){
+      return String(a.fish_type||'').localeCompare(String(b.fish_type||''),'it',{sensitivity:'base'});
+    }
+    // expiry default
+    const da = (a.fefo_expiration_date ?? a.fefo_date) || '';
+    const db = (b.fefo_expiration_date ?? b.fefo_date) || '';
+    if(da && db) return String(da).localeCompare(String(db));
+    if(da && !db) return -1;
+    if(!da && db) return 1;
+    // tie-breaker: nome
+    return String(a.product_name||'').localeCompare(String(b.product_name||''),'it',{sensitivity:'base'});
+  });
+
+  return out;
+}
+
+function filterAndSortInventoryLots(rows, tokens){
+  const q = String(INVENTORY_FILTERS.search||'').trim();
+  const isEan = invIsEanQuery(q);
+
+  const fishFilter = String(INVENTORY_FILTERS.fishType||'').trim();
+  const onlyActive = !!INVENTORY_FILTERS.chips.onlyActive;
+  const expiring = !!INVENTORY_FILTERS.chips.expiring;
+  const lowStock = !!INVENTORY_FILTERS.chips.lowStock && invLowStockEnabled();
+  const zeroStock = !!INVENTORY_FILTERS.chips.zeroStock;
+  const onlyFefo = !!INVENTORY_FILTERS.chips.onlyFefo;
+
+  const activeMap = onlyActive ? invGetProductActiveMap() : null;
+
+  let out = (rows||[]).filter(r=>{
+    if(fishFilter && String(r.fish_type||'').trim() !== fishFilter) return false;
+
+    // Solo attivi: nascondi lotti di prodotti archiviati
+    if(onlyActive){
+      const pid = String(r.product_id ?? '');
+      // se non lo troviamo, per sicurezza lo nascondiamo (dato incoerente)
+      if(!pid) return false;
+      if(activeMap && activeMap.has(pid)){
+        if(activeMap.get(pid) !== true) return false;
+      }else{
+        return false;
+      }
+    }
+
+    const stock = Number(r.stock ?? 0);
+    if(lowStock){
+      const thr = Number(SETTINGS.low_stock_threshold_units||0);
+      if(!(stock <= thr)) return false;
+    }
+    if(zeroStock){
+      if(!(stock === 0)) return false;
+    }
+
+    if(expiring){
+      if(!invIsExpiring(r.expiration_date || '')) return false;
+    }
+
+    if(onlyFefo){
+      const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(r.product_id)) || "";
+      const isFefo = fefoLotId !== "" && String(r.lot_id) === String(fefoLotId);
+      if(!isFefo) return false;
+    }
+
+    // search
+    if(!tokens || !tokens.length) return true;
+    const hay = `${r.lot_number} ${r.product_name} ${r.format} ${r.fish_type} ${r.ean} ${r.stock} ${r.production_date||''} ${r.expiration_date||''}`;
+    if(isEan){
+      const ean = String(r.ean||'').replace(/\s+/g,'');
+      return ean.includes(q);
+    }
+    return matchesTokens(hay, tokens);
+  });
+
+  const sortKey = INVENTORY_FILTERS.sortLots || 'expiry';
+  out.sort((a,b)=>{
+    if(sortKey === 'lot'){
+      // lotti tipo 1.26, 365.26: confronto numerico sul prefisso e poi sul suffisso
+      const parseLot = (s)=>{
+        const t = String(s||'').trim();
+        const m = t.match(/^\s*(\d+)\.(\d+)\s*$/);
+        if(m) return [Number(m[1]), Number(m[2])];
+        // fallback: split su punto, prendi numeri dove puoi
+        const parts = t.split('.');
+        const p0 = Number(parts[0]); const p1 = Number(parts[1]);
+        return [isNaN(p0)?Number.MAX_SAFE_INTEGER:p0, isNaN(p1)?Number.MAX_SAFE_INTEGER:p1];
+      };
+      const [a0,a1]=parseLot(a.lot_number);
+      const [b0,b1]=parseLot(b.lot_number);
+      if(a0!==b0) return a0-b0;
+      if(a1!==b1) return a1-b1;
+      return String(a.lot_number||'').localeCompare(String(b.lot_number||''));
+    }
+    if(sortKey === 'product'){
+      const c = String(a.product_name||'').localeCompare(String(b.product_name||''),'it',{sensitivity:'base'});
+      if(c!==0) return c;
+      return String(a.lot_number||'').localeCompare(String(b.lot_number||''));
+    }
+    // expiry default
+    const da = a.expiration_date || '';
+    const db = b.expiration_date || '';
+    if(da && db) return String(da).localeCompare(String(db));
+    if(da && !db) return -1;
+    if(!da && db) return 1;
+    // tie: lotto
+    return String(a.lot_number||'').localeCompare(String(b.lot_number||''));
+  });
+
+  return out;
+}
+
+
 function renderInventoryProducts(rows, tokens){
   const thead = document.getElementById('inv_thead');
   const tbody = document.getElementById('inv_tbody');
@@ -2646,16 +3167,14 @@ function renderInventoryProducts(rows, tokens){
   if(isMobile()){
     const container = document.getElementById('inv_mobile_cards');
     if(container){
-      const filtered = (rows||[]).filter(r => {
-        if(!tokens.length) return true;
-        const stockTotal = (r.stock_total ?? r.total_stock ?? 0);
-        const fefoLot = (r.fefo_lot_number ?? r.fefo_lot ?? '');
-        const fefoDate = (r.fefo_expiration_date ?? r.fefo_date ?? '');
-        return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${stockTotal} ${r.lots_count} ${fefoLot} ${fefoDate}`, tokens);
-      });
+      const filtered = filterAndSortInventoryProducts(rows, tokens);
 
       const total = filtered.length;
       updateInventoryTablePager(total);
+  updateInventoryFilterMeta(total, (rows||[]).length);
+      updateInventoryFilterMeta(total, (rows||[]).length);
+  updateInventoryFilterMeta(total, (rows||[]).length);
+      updateInventoryFilterMeta(total, (rows||[]).length);
 
       const startIdx = (INVENTORY_TABLE_PAGE - 1) * INVENTORY_TABLE_PER_PAGE;
       const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
@@ -2704,13 +3223,7 @@ function renderInventoryProducts(rows, tokens){
     return;
   }
 
-  const filtered = (rows||[]).filter(r => {
-    if(!tokens.length) return true;
-    const stockTotal = (r.stock_total ?? r.total_stock ?? 0);
-    const fefoLot = (r.fefo_lot_number ?? r.fefo_lot ?? '');
-    const fefoDate = (r.fefo_expiration_date ?? r.fefo_date ?? '');
-    return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${stockTotal} ${r.lots_count} ${fefoLot} ${fefoDate}`, tokens);
-  });
+  const filtered = filterAndSortInventoryProducts(rows, tokens);
 
   const total = filtered.length;
   updateInventoryTablePager(total);
@@ -2801,10 +3314,7 @@ function renderInventoryLots(rows, tokens){
   if(isMobile()){
     const container = document.getElementById('inv_mobile_cards');
     if(container){
-      const filtered = (rows||[]).filter(r => {
-        if(!tokens.length) return true;
-        return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.lot_number} ${r.stock} ${r.production_date||''} ${r.expiration_date||''}`, tokens);
-      });
+      const filtered = filterAndSortInventoryLots(rows, tokens);
 
       const total = filtered.length;
       updateInventoryTablePager(total);
@@ -2855,10 +3365,7 @@ function renderInventoryLots(rows, tokens){
     return;
   }
 
-  const filtered = (rows||[]).filter(r => {
-    if(!tokens.length) return true;
-    return matchesTokens(`${r.fish_type} ${r.product_name} ${r.format} ${r.ean} ${r.lot_number} ${r.stock} ${r.production_date||''} ${r.expiration_date||''}`, tokens);
-  });
+  const filtered = filterAndSortInventoryLots(rows, tokens);
 
   const total = filtered.length;
   updateInventoryTablePager(total);

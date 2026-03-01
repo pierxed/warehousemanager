@@ -1193,11 +1193,6 @@ table.mobile-cards{
   .back-to-top{ display:none !important; }
 }
 
-/* Evidenzia lotto FEFO nella vista per lotto */
-.fefo-lot-highlight{
-  outline: 2px solid rgba(214, 214, 214, 0.95);
-  background: rgba(255, 0, 0, 0.061);
-}
 
 .pill-mini-fefo-lot{
   display:inline-flex;
@@ -1210,3 +1205,23 @@ table.mobile-cards{
   border:1px solid var(--border-fefo-pill);
   font-size:12px;
 }
+
+
+/* ==========================
+   MAGAZZINO: FILTER BAR
+   ========================== */
+.inv-filterbar{margin:14px 0 16px;display:flex;flex-direction:column;gap:10px}
+.inv-search-wrap{display:flex;justify-content:center}
+.inv-search{position:relative;max-width:520px;width:100%;display:flex;align-items:center}
+.inv-search input{width:100%;padding:10px 36px 10px 40px;border-radius:12px;border:1px solid rgba(0,0,0,.14);background:#fff}
+.inv-search-icon{position:absolute;left:12px;opacity:.8}
+.inv-search-clear{position:absolute;right:8px;border:none;background:transparent;cursor:pointer;opacity:.7;font-size:16px;padding:6px;border-radius:10px}
+.inv-search-clear:hover{opacity:1}
+.inv-filter-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.inv-filter-row select{padding:9px 10px;border-radius:12px;border:1px solid rgba(0,0,0,.14);background:#fff;min-width:160px}
+.inv-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.inv-chips .chip{cursor:pointer}
+.inv-chips .chip.active{outline:2px solid rgba(0,0,0,.12)}
+.inv-chips .chip.disabled{opacity:.45;cursor:not-allowed}
+.inv-chips .chip-reset{opacity:.9}
+.inv-filter-meta{display:flex;justify-content:center}

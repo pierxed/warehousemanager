@@ -685,18 +685,39 @@
           </div>
 
           <div class="inv-controls">
-            <label>Scadenze:</label>
-            <select id="inv_days_filter">
-              <option value="0">Tutte</option>
-              <option value="7">≤ 7 giorni</option>
-              <option value="14">≤ 14 giorni</option>
-              <option value="30">≤ 30 giorni</option>
-            </select>
-
             <div class="inv-toggle">
               <button id="inv_view_products" class="chip active" type="button">Per prodotto</button>
               <button id="inv_view_lots" class="chip" type="button">Per lotti</button>
             </div>
+          </div>
+
+          <div id="inv_filterbar" class="inv-filterbar" aria-label="Filtri Magazzino">
+            <div class="inv-search-wrap">
+              <div class="inv-search">
+                <span class="inv-search-icon">🔎</span>
+                <input id="inv_search" type="text" placeholder="Cerca…" autocomplete="off" />
+                <button id="inv_search_clear" class="inv-search-clear" type="button" title="Svuota" aria-label="Svuota">✖</button>
+              </div>
+            </div>
+
+            <div class="inv-filter-row">
+              <select id="inv_fish_type" aria-label="Tipo pesce">
+                <option value="">Tutti</option>
+              </select>
+
+              <select id="inv_sort" aria-label="Ordina"></select>
+            </div>
+
+            <div class="inv-chips" id="inv_chips">
+              <button type="button" class="chip" data-inv-chip="expiring">Scadenze</button>
+              <button type="button" class="chip" data-inv-chip="lowStock">Stock basso</button>
+              <button type="button" class="chip" data-inv-chip="zeroStock">Stock 0</button>
+              <button type="button" class="chip" data-inv-chip="onlyActive">Solo attivi</button>
+              <button type="button" class="chip" data-inv-chip="onlyFefo">Solo FEFO</button>
+              <button type="button" class="chip chip-reset" data-inv-chip="reset">Reset</button>
+            </div>
+
+            <div class="inv-filter-meta muted" id="inv_filter_meta" aria-live="polite"></div>
           </div>
 
           <div class="inv-grid">

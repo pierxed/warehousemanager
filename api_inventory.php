@@ -34,7 +34,6 @@ try {
     GROUP BY
       l.id, p.id, p.name, p.format, p.fish_type, p.ean,
       b.lot_number, b.production_date, b.expiration_date
-    HAVING stock <> 0
     ORDER BY b.expiration_date ASC, b.production_date ASC, l.id ASC
   ";
   $stmt = $pdo->query($sqlLots);
@@ -53,41 +52,76 @@ try {
   }
 
   // 2) Aggregato per prodotto + FEFO (lotto con scadenza più vicina)
-  $byProduct = [];
-  foreach ($lots as $r) {
-    $pid = (int)$r['product_id'];
-    if (!isset($byProduct[$pid])) {
-      $byProduct[$pid] = [
-        'product_id' => $pid,
-        'product_name' => $r['product_name'],
-        'format' => $r['format'],
-        'fish_type' => $r['fish_type'],
-        'ean' => $r['ean'],
-        'stock_total' => 0,
-        'lots_count' => 0,
-        'fefo_lot_number' => null,
-        'fefo_expiration_date' => null,
-        'fefo_lot_id' => null,
-      ];
-    }
-    $stock = (int)$r['stock'];
-    $byProduct[$pid]['stock_total'] += $stock;
-    $byProduct[$pid]['lots_count'] += 1;
+//    Include ANCHE i prodotti con stock 0 e/o archiviati (serve per filtri e “stock 0”)
+$stmtP = $pdo->query("
+  SELECT id, name, format, fish_type, ean, is_active
+  FROM products
+  ORDER BY name ASC, id ASC
+");
+$allProducts = $stmtP->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // FEFO = scadenza più vicina (solo se scadenza esiste e stock > 0)
-    if (!empty($r['expiration_date']) && $stock > 0) {
-      $curr = $byProduct[$pid]['fefo_expiration_date'];
-      if ($curr === null || $r['expiration_date'] < $curr) {
-        $byProduct[$pid]['fefo_expiration_date'] = $r['expiration_date'];
-        $byProduct[$pid]['fefo_lot_number'] = $r['lot_number'];
-        $byProduct[$pid]['fefo_lot_id'] = (int)$r['lot_id'];
-      }
+$byProduct = [];
+foreach ($allProducts as $p) {
+  $pid = (int)$p['id'];
+  $byProduct[$pid] = [
+    'product_id' => $pid,
+    'product_name' => $p['name'],
+    'format' => $p['format'],
+    'fish_type' => $p['fish_type'],
+    'ean' => $p['ean'],
+    'is_active' => (int)$p['is_active'],
+    'stock_total' => 0,
+    'lots_count' => 0,
+    'fefo_lot_number' => null,
+    'fefo_expiration_date' => null,
+    'fefo_lot_id' => null,
+  ];
+}
+
+// Aggrega dai lotti con stock != 0 (già filtrati sopra)
+foreach ($lots as $r) {
+  $pid = (int)$r['product_id'];
+  if (!isset($byProduct[$pid])) {
+    // fallback (non dovrebbe succedere, ma non vogliamo mai warning)
+    $byProduct[$pid] = [
+      'product_id' => $pid,
+      'product_name' => $r['product_name'],
+      'format' => $r['format'],
+      'fish_type' => $r['fish_type'],
+      'ean' => $r['ean'],
+      'is_active' => 1,
+      'stock_total' => 0,
+      'lots_count' => 0,
+      'fefo_lot_number' => null,
+      'fefo_expiration_date' => null,
+      'fefo_lot_id' => null,
+    ];
+  }
+
+  $stock = (int)$r['stock'];
+  $byProduct[$pid]['stock_total'] += $stock;
+  $byProduct[$pid]['lots_count'] += 1;
+
+  // FEFO = scadenza più vicina (solo se scadenza esiste e stock > 0)
+  if (!empty($r['expiration_date']) && $stock > 0) {
+    $curr = $byProduct[$pid]['fefo_expiration_date'];
+    if ($curr === null || $r['expiration_date'] < $curr) {
+      $byProduct[$pid]['fefo_expiration_date'] = $r['expiration_date'];
+      $byProduct[$pid]['fefo_lot_number'] = $r['lot_number'];
+      $byProduct[$pid]['fefo_lot_id'] = (int)$r['lot_id'];
     }
   }
-  $productsAgg = array_values($byProduct);
-  usort($productsAgg, fn($a,$b) => ($b['stock_total'] <=> $a['stock_total']));
+}
 
-  // 3) Movimenti recenti (ultimi 20)
+$productsAgg = array_values($byProduct);
+
+// default: stock alto prima (come prima), ma con tie-breaker sul nome
+usort($productsAgg, function($a,$b){
+  $c = ((int)$b['stock_total'] <=> (int)$a['stock_total']);
+  if ($c !== 0) return $c;
+  return strcmp((string)$a['product_name'], (string)$b['product_name']);
+});
+// 3) Movimenti recenti (ultimi 20)
   $stmtM = $pdo->query("
     SELECT id, product_id, lot_id, quantity, type, reason, note, created_at
     FROM movements
