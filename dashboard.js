@@ -2736,13 +2736,7 @@ function applyInventoryFilterUiFromState(){
   });
 }
 
-function updateInventoryFilterMeta(shown, total){
-  const meta = document.getElementById('inv_filter_meta');
-  if(!meta) return;
-  meta.textContent = `Mostrati ${shown} / ${total}`;
-}
-
-
+// Nota: meta "Mostrati X/Y" rimosso (duplicava info già presente nella paginazione)
 
 // Movimenti (tab_inventory) - paginazione
 let INVENTORY_MOVES_PAGE = 1;
@@ -3171,10 +3165,6 @@ function renderInventoryProducts(rows, tokens){
 
       const total = filtered.length;
       updateInventoryTablePager(total);
-  updateInventoryFilterMeta(total, (rows||[]).length);
-      updateInventoryFilterMeta(total, (rows||[]).length);
-  updateInventoryFilterMeta(total, (rows||[]).length);
-      updateInventoryFilterMeta(total, (rows||[]).length);
 
       const startIdx = (INVENTORY_TABLE_PAGE - 1) * INVENTORY_TABLE_PER_PAGE;
       const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);

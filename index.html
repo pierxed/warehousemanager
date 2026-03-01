@@ -691,35 +691,6 @@
             </div>
           </div>
 
-          <div id="inv_filterbar" class="inv-filterbar" aria-label="Filtri Magazzino">
-            <div class="inv-search-wrap">
-              <div class="inv-search">
-                <span class="inv-search-icon">🔎</span>
-                <input id="inv_search" type="text" placeholder="Cerca…" autocomplete="off" />
-                <button id="inv_search_clear" class="inv-search-clear" type="button" title="Svuota" aria-label="Svuota">✖</button>
-              </div>
-            </div>
-
-            <div class="inv-filter-row">
-              <select id="inv_fish_type" aria-label="Tipo pesce">
-                <option value="">Tutti</option>
-              </select>
-
-              <select id="inv_sort" aria-label="Ordina"></select>
-            </div>
-
-            <div class="inv-chips" id="inv_chips">
-              <button type="button" class="chip" data-inv-chip="expiring">Scadenze</button>
-              <button type="button" class="chip" data-inv-chip="lowStock">Stock basso</button>
-              <button type="button" class="chip" data-inv-chip="zeroStock">Stock 0</button>
-              <button type="button" class="chip" data-inv-chip="onlyActive">Solo attivi</button>
-              <button type="button" class="chip" data-inv-chip="onlyFefo">Solo FEFO</button>
-              <button type="button" class="chip chip-reset" data-inv-chip="reset">Reset</button>
-            </div>
-
-            <div class="inv-filter-meta muted" id="inv_filter_meta" aria-live="polite"></div>
-          </div>
-
           <div class="inv-grid">
             <div class="card">
               <h3>📌 Cose da fare</h3>
@@ -729,6 +700,38 @@
             <div class="card">
               <h3>⏳ Finirà presto</h3>
               <div id="inv_runout" class="muted">Caricamento...</div>
+            </div>
+          </div>
+
+          <!-- Filtri (sotto “Cose da fare / Finirà presto”) -->
+          <div id="inv_filterbar" class="inv-filterbar" aria-label="Filtri Magazzino">
+            <div class="inv-filter-top">
+              <div class="inv-search">
+                <span class="inv-search-icon">🔎</span>
+                <input id="inv_search" type="text" placeholder="Cerca…" autocomplete="off" />
+                <button id="inv_search_clear" class="inv-search-clear" type="button" title="Svuota" aria-label="Svuota">✖</button>
+              </div>
+
+              <div class="inv-filter-row">
+                <select id="inv_fish_type" aria-label="Tipo pesce">
+                  <option value="">Tutti</option>
+                </select>
+
+                <select id="inv_sort" aria-label="Ordina"></select>
+              </div>
+            </div>
+
+            <div class="inv-filter-bottom">
+              <div class="inv-chips" id="inv_chips">
+                <button type="button" class="chip" data-inv-chip="expiring">Scadenze</button>
+                <button type="button" class="chip" data-inv-chip="lowStock">Stock basso</button>
+                <button type="button" class="chip" data-inv-chip="zeroStock">Stock 0</button>
+                <button type="button" class="chip" data-inv-chip="onlyActive">Solo attivi</button>
+                <button type="button" class="chip" data-inv-chip="onlyFefo">Solo FEFO</button>
+                <button type="button" class="chip chip-reset" data-inv-chip="reset">Reset</button>
+              </div>
+
+
             </div>
           </div>
 
