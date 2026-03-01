@@ -1247,3 +1247,8 @@ table.mobile-cards{
   .inv-filter-row{width:100%}
   .inv-filter-row select{flex:1;min-width:0}
 }
+
+
+/* Global search: stessa UI del Magazzino */
+.global-search{flex:1;min-width:280px}
+.global-search .inv-search-clear{visibility:hidden;pointer-events:none}

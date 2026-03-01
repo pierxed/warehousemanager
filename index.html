@@ -33,7 +33,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="pill">v0.2</div>
+        <div class="pill">v0.3</div>
         <div class="muted">Locale (MAMP)</div>
       </div>
     </aside>
@@ -48,17 +48,19 @@
         </div>
 
         <div class="topbar-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <input class="input" id="global_search" placeholder="Cerca (EAN, lotto, prodotto)..." />
+          
+          <div class="inv-search global-search">
+            <span class="inv-search-icon">🔎</span>
+            <input id="global_search" class="input" placeholder="Cerca (EAN, lotto, prodotto)..." autocomplete="off" />
+            <button id="global_search_clear" type="button" class="inv-search-clear" title="Svuota" aria-label="Svuota">✖</button>
+          </div>
 
+          <!-- Manteniamo questi ID per compatibilità (ma li teniamo nascosti) -->
           <div id="global_search_hint" class="muted" style="display:none; align-items:center; gap:8px;">
             <span>Filtro attivo:</span>
             <span id="global_search_hint_text" class="pill" style="padding:6px 10px;"></span>
-
-            <button id="global_search_clear" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">
-              ✕ reset
-            </button>
           </div>
-        </div>
+</div>
       </header>
 
       <!-- Toasts: non tocchiamo ID -->

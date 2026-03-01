@@ -320,17 +320,19 @@ function highlightTextRaw(text, tokens){
 
 function updateGlobalSearchHint(){
   const q = getGlobalQuery();
+
+  // UI nuova: niente "hint" visibile, solo tasto ✖ integrato nella barra
+  const clearBtn = document.getElementById('global_search_clear');
+  if(clearBtn){
+    clearBtn.style.visibility = q ? 'visible' : 'hidden';
+    clearBtn.style.pointerEvents = q ? 'auto' : 'none';
+  }
+
+  // Manteniamo gli elementi hint (ID) per compatibilità, ma restano nascosti
   const hint = document.getElementById('global_search_hint');
   const txt = document.getElementById('global_search_hint_text');
-  if(!hint || !txt) return;
-
-  if(q){
-    txt.textContent = q;
-    hint.style.display = 'inline-flex';
-  } else {
-    hint.style.display = 'none';
-    txt.textContent = '';
-  }
+  if(txt) txt.textContent = q || '';
+  if(hint) hint.style.display = 'none';
 }
 
 function isTabActive(tabId){
