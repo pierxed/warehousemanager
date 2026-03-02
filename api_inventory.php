@@ -39,9 +39,17 @@ try {
   $stmt = $pdo->query($sqlLots);
   $lots = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+  // aggiungi flag scaduto (utile per badge UI)
+  $today = new DateTimeImmutable('today');
+  foreach ($lots as &$r) {
+    $expIso = (string)($r['expiration_date'] ?? '');
+    $exp = $expIso ? DateTimeImmutable::createFromFormat('Y-m-d', substr($expIso,0,10)) : null;
+    $r['is_expired'] = ($exp !== null && $exp < $today) ? 1 : 0;
+  }
+  unset($r);
+
   // filtro scadenza (se richiesto) lato PHP per semplicità e zero sorprese SQL
   if ($days && $days > 0) {
-    $today = new DateTimeImmutable('today');
     $lots = array_values(array_filter($lots, function($r) use ($today, $days){
       if (empty($r['expiration_date'])) return false;
       $exp = DateTimeImmutable::createFromFormat('Y-m-d', substr($r['expiration_date'],0,10));
@@ -71,7 +79,9 @@ foreach ($allProducts as $p) {
     'ean' => $p['ean'],
     'is_active' => (int)$p['is_active'],
     'stock_total' => 0,
+    'expired_stock_total' => 0,
     'lots_count' => 0,
+    'expired_lots_count' => 0,
     'fefo_lot_number' => null,
     'fefo_expiration_date' => null,
     'fefo_lot_id' => null,
@@ -101,6 +111,11 @@ foreach ($lots as $r) {
   $stock = (int)$r['stock'];
   $byProduct[$pid]['stock_total'] += $stock;
   $byProduct[$pid]['lots_count'] += 1;
+
+  if (!empty($r['is_expired']) && $stock > 0) {
+    $byProduct[$pid]['expired_stock_total'] += $stock;
+    $byProduct[$pid]['expired_lots_count'] += 1;
+  }
 
   // FEFO = scadenza più vicina (solo se scadenza esiste e stock > 0)
   if (!empty($r['expiration_date']) && $stock > 0) {

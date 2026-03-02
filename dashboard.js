@@ -1424,7 +1424,11 @@ const SaleUI = (() => {
 
     if (preview.success === false) {
       clearConfirmBox();
-      setMsg('error', preview.error || 'Stock insufficiente');
+      if(preview.code === 'EXPIRED_STOCK_BLOCKED'){
+        setMsg('error', `⛔ ${preview.error}. In Magazzino vedrai i lotti con badge SCADUTO.`);
+      } else {
+        setMsg('error', preview.error || 'Stock insufficiente');
+      }
       return;
     }
 
@@ -1442,9 +1446,13 @@ const SaleUI = (() => {
       });
 
       if (commit?.success === false || commit?.error) {
-        setMsg('error', commit.available != null
-          ? `Stock insufficiente: disponibili ${commit.available}. Riprova.`
-          : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore vendita')));
+        if(commit.code === 'EXPIRED_STOCK_BLOCKED'){
+          setMsg('error', `⛔ ${commit.error}. (Stock scaduto)`);
+        } else {
+          setMsg('error', commit.available != null
+            ? `Stock insufficiente: disponibili ${commit.available}. Riprova.`
+            : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore vendita')));
+        }
         return;
       }
 
@@ -1496,7 +1504,13 @@ const SaleUI = (() => {
     });
 
     if (preview.success === false) {
-      setMsg('error', preview.error || 'Errore preview manuale');
+      if(preview.code === 'LOT_EXPIRED'){
+        setMsg('error', `⛔ ${preview.error}. Scegli un lotto non scaduto.`);
+      } else if(preview.code === 'EXPIRED_STOCK_BLOCKED'){
+        setMsg('error', `⛔ ${preview.error}. In Magazzino vedrai i lotti con badge SCADUTO.`);
+      } else {
+        setMsg('error', preview.error || 'Errore preview manuale');
+      }
       return;
     }
 
@@ -1515,9 +1529,13 @@ const SaleUI = (() => {
       });
 
       if (commit.success === false || commit.error) {
-        setMsg('error', commit.available != null
-          ? `Stock insufficiente: disponibili ${commit.available}.`
-          : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore')));
+        if(commit.code === 'LOT_EXPIRED' || commit.code === 'EXPIRED_STOCK_BLOCKED'){
+          setMsg('error', `⛔ ${commit.error}.`);
+        } else {
+          setMsg('error', commit.available != null
+            ? `Stock insufficiente: disponibili ${commit.available}.`
+            : (commit.detail ? `${commit.error}: ${commit.detail}` : (commit.error || 'Errore')));
+        }
         return;
       }
 
@@ -3204,6 +3222,7 @@ function renderInventoryProducts(rows, tokens){
         const d = new Date(iso);
         if(isNaN(d)) return 'pill-exp';
         const diff = Math.ceil((d - today) / (1000*60*60*24));
+        if(diff < 0) return 'pill-exp expired';
         if(diff <= 30) return 'pill-exp danger';
         return 'pill-exp ok';
       };
@@ -3215,6 +3234,7 @@ function renderInventoryProducts(rows, tokens){
         const ean = highlightTextRaw(r.ean||'—', tokens);
 
         const stock = Number(r.stock_total ?? r.total_stock ?? 0);
+        const expiredStock = Number(r.expired_stock_total ?? r.expired_stock ?? 0);
         const low = SETTINGS.low_stock_alert_enabled && stock <= Number(SETTINGS.low_stock_threshold_units||0);
         const lotsCount = Number(r.lots_count||0);
         const fefoLot = highlightTextRaw((r.fefo_lot_number ?? r.fefo_lot) || '—', tokens);
@@ -3225,7 +3245,7 @@ function renderInventoryProducts(rows, tokens){
           title: `${prodName} ${fmt ? '• ' + fmt : ''}`,
           lines: [
             `<span class="pill-mini">${fish}</span> <span class="pill-mini">EAN <strong>${ean}</strong></span>`,
-            `<span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span> <span class="pill-mini">Lotti <strong>${lotsCount}</strong></span> ${low ? `<span class="pill-mini pill-low">⚠️ basso</span>` : ''}`,
+            `<span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span> <span class="pill-mini">Lotti <strong>${lotsCount}</strong></span> ${expiredStock>0 ? `<span class="pill-mini pill-exp expired">Scaduti <strong>${expiredStock}</strong></span>` : ''} ${low ? `<span class="pill-mini pill-low">⚠️ basso</span>` : ''}`,
             `<span class="pill-mini">FEFO <strong>${fefoLot}</strong></span> <span class="pill-mini ${expClass(fefoIso)}">Scad. <strong>${fefoDate}</strong></span>`,
             `<div class="mcard-actions">
               <button type="button" class="qa-btn" data-qa="prod" data-product="${Number(r.product_id||0)}">Produci</button>
@@ -3256,6 +3276,7 @@ function renderInventoryProducts(rows, tokens){
     const d = new Date(iso);
     if(isNaN(d)) return 'pill-exp';
     const diff = Math.ceil((d - today) / (1000*60*60*24));
+    if(diff < 0) return 'pill-exp expired';
     if(diff <= 30) return 'pill-exp danger';
     return 'pill-exp ok';
   };
@@ -3267,6 +3288,7 @@ function renderInventoryProducts(rows, tokens){
     const ean = highlightTextRaw(r.ean||'—', tokens);
 
     const stock = Number(r.stock_total ?? r.total_stock ?? 0);
+    const expiredStock = Number(r.expired_stock_total ?? r.expired_stock ?? 0);
     const low = SETTINGS.low_stock_alert_enabled && stock <= Number(SETTINGS.low_stock_threshold_units||0);
     const lotsCount = Number(r.lots_count||0);
     const fefoLot = highlightTextRaw((r.fefo_lot_number ?? r.fefo_lot) || '—', tokens);
@@ -3288,6 +3310,7 @@ function renderInventoryProducts(rows, tokens){
           <div class="inv-cell-sub" style="margin-top:0;">
             <span class="pill-mini pill-stock">Stock&nbsp;<strong>${stock}</strong></span>
             ${low ? `<span class="pill-mini pill-low">⚠️ basso</span>` : ''}
+            ${expiredStock>0 ? `<span class="pill-mini pill-exp expired">Scaduti&nbsp;<strong>${expiredStock}</strong></span>` : ''}
             <span class="pill-mini">Lotti&nbsp;<strong>${lotsCount}</strong></span>
           </div>
           <div class="inv-cell-sub" style="margin-top:8px;">
@@ -3361,6 +3384,7 @@ function renderInventoryLots(rows, tokens){
         const prodDate = highlightTextRaw(r.production_date ? formatDateIT(r.production_date) : '—', tokens);
         const expIso = r.expiration_date || '';
         const expDate = highlightTextRaw(expIso ? formatDateIT(expIso) : '—', tokens);
+        const isExpired = Number(r.is_expired||0) === 1;
          const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(r.product_id)) || "";
         const isFefo = fefoLotId !== "" && String(r.lot_id) === String(fefoLotId);
         
@@ -3369,7 +3393,7 @@ function renderInventoryLots(rows, tokens){
           lines: [
             `<span class="pill-mini">${fish}</span> <span class="pill-mini">EAN <strong>${ean}</strong></span>`,
             `${isFefo ? '<span class="pill-mini-fefo-lot"><strong>FEFO</strong></span>' : ''} <span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span> `,
-            `<span class="pill-mini">Prod. <strong>${prodDate}</strong></span> <span class="pill-mini ${expClass(expIso)}">Scad. <strong>${expDate}</strong></span>`,
+            `<span class="pill-mini">Prod. <strong>${prodDate}</strong></span> <span class="pill-mini ${expClass(expIso)}">Scad. <strong>${expDate}</strong></span> ${isExpired ? '<span class="pill-mini pill-exp expired"><strong>SCADUTO</strong></span>' : ''}`,
             `<div class="mcard-actions">
               <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
               <button type="button" class="qa-btn primary" data-qa="sale_lot" data-product="${Number(r.product_id||0)}" data-lot="${Number(r.lot_id||0)}">Vendi lotto</button>
@@ -3398,6 +3422,7 @@ function renderInventoryLots(rows, tokens){
     const d = new Date(iso);
     if(isNaN(d)) return 'pill-exp';
     const diff = Math.ceil((d - today) / (1000*60*60*24));
+    if(diff < 0) return 'pill-exp expired';
     if(diff <= 30) return 'pill-exp danger';
     return 'pill-exp ok';
   };
@@ -3412,6 +3437,7 @@ function renderInventoryLots(rows, tokens){
     const prodDate = highlightTextRaw(r.production_date ? formatDateIT(r.production_date) : '—', tokens);
     const expIso = r.expiration_date || '';
     const expDate = highlightTextRaw(expIso ? formatDateIT(expIso) : '—', tokens);
+    const isExpired = Number(r.is_expired||0) === 1;
     const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(r.product_id)) || "";
     const isFefo = fefoLotId !== "" && String(r.lot_id) === String(fefoLotId);
 
@@ -3433,6 +3459,7 @@ function renderInventoryLots(rows, tokens){
           <div class="inv-cell-sub" style="margin-top:8px;">
             <span class="pill-mini">Prod.&nbsp;<strong>${prodDate}</strong></span>
             <span class="pill-mini ${expClass(expIso)}">Scad.&nbsp;<strong>${expDate}</strong></span>
+            ${isExpired ? '<span class="pill-mini pill-exp expired"><strong>SCADUTO</strong></span>' : ''}
           </div>
         </td>
 

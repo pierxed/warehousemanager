@@ -18,6 +18,58 @@ try {
   $requestedLots = $data['lots'] ?? [];
   if (!is_array($requestedLots)) $requestedLots = [];
 
+  // ------------------------------------------------------------
+  // BUGFIX SCADENZE:
+  // La logica FEFO esclude i lotti scaduti. Se tutto lo stock è scaduto,
+  // prima risultava "stock insufficiente" (0) anche se a magazzino c'è.
+  // Qui calcoliamo anche stock totale + stock scaduto per dare un errore chiaro.
+  // ------------------------------------------------------------
+
+  $stmtAll = $pdo->prepare("
+    SELECT
+      l.id AS lot_id,
+      b.lot_number,
+      b.expiration_date,
+      b.production_date,
+      COALESCE(SUM(CASE
+        WHEN m.type='PRODUCTION' THEN m.quantity
+        WHEN m.type='SALE' THEN -m.quantity
+        WHEN m.type='ADJUSTMENT' THEN m.quantity
+        ELSE 0
+      END), 0) AS stock
+    FROM lots l
+    JOIN batches b ON b.id = l.batch_id
+    LEFT JOIN movements m ON m.lot_id = l.id
+    WHERE l.product_id = ?
+    GROUP BY l.id, b.lot_number, b.expiration_date, b.production_date
+    HAVING stock > 0
+    ORDER BY b.expiration_date ASC, b.production_date ASC, l.id ASC
+  ");
+  $stmtAll->execute([$product_id]);
+  $lotsAll = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+  $today = new DateTimeImmutable('today');
+  $expiredLotsAll = [];
+  $totalAll = 0;
+  $expiredAll = 0;
+  foreach ($lotsAll as $r) {
+    $st = (int)$r['stock'];
+    $totalAll += $st;
+
+    $exp = $r['expiration_date'] ? DateTimeImmutable::createFromFormat('Y-m-d', substr((string)$r['expiration_date'],0,10)) : null;
+    $isExpired = ($exp !== null && $exp < $today);
+    if ($isExpired) {
+      $expiredAll += $st;
+      $expiredLotsAll[] = [
+        'lot_id' => (int)$r['lot_id'],
+        'lot_number' => $r['lot_number'],
+        'expiration_date' => $r['expiration_date'],
+        'production_date' => $r['production_date'],
+        'stock' => $st,
+      ];
+    }
+  }
+
   // Lotti disponibili (stock > 0) ordinati FEFO
   $stmt = $pdo->prepare("
     SELECT
@@ -56,6 +108,16 @@ try {
     'stock' => (int)$r['stock'],
   ], $lots);
 
+  // map su tutti i lotti (inclusi scaduti) per distinguere errori in manuale
+  $stockByLotAll = [];
+  $expiredByLot = [];
+  foreach ($lotsAll as $r) {
+    $lid = (int)$r['lot_id'];
+    $stockByLotAll[$lid] = (int)$r['stock'];
+    $exp = $r['expiration_date'] ? DateTimeImmutable::createFromFormat('Y-m-d', substr((string)$r['expiration_date'],0,10)) : null;
+    $expiredByLot[$lid] = ($exp !== null && $exp < $today);
+  }
+
   if ($mode === 'manual') {
     // Validazione input manuale: costruisci plan dai lots richiesti
     $plan = [];
@@ -86,6 +148,19 @@ try {
       $lot_id = (int)$row['lot_id'];
       $need = (int)$row['qty'];
       $avail = $stockByLot[$lot_id] ?? 0;
+
+      // lotto esiste ma è scaduto => blocca con messaggio esplicito
+      if (($avail <= 0) && (($stockByLotAll[$lot_id] ?? 0) > 0) && (($expiredByLot[$lot_id] ?? false) === true)) {
+        json_out([
+          'success'=>false,
+          'code'=>'LOT_EXPIRED',
+          'error'=>'Lotto scaduto: vendita bloccata',
+          'lot_id'=>$lot_id,
+          'expired_available'=>$stockByLotAll[$lot_id],
+          'suggested_lots'=>$suggested,
+          'expired_lots'=>$expiredLotsAll
+        ], 409);
+      }
       if ($avail < $need) {
         // suggerisci altri lotti (escludi quelli già scelti)
         $chosen = array_flip(array_map(fn($p)=> (int)$p['lot_id'], $plan));
@@ -119,6 +194,21 @@ try {
   foreach ($lots as $r) $totalAvailable += (int)$r['stock'];
 
   if ($totalAvailable < $qty) {
+    // Se lo stock totale (incluso scaduto) copre, ma quello vendibile no: è tutto scaduto
+    if ($totalAll >= $qty && $expiredAll > 0) {
+      json_out([
+        'success'=>false,
+        'code'=>'EXPIRED_STOCK_BLOCKED',
+        'error'=>'Stock presente ma scaduto: vendita bloccata',
+        'available_non_expired'=>$totalAvailable,
+        'available_total'=>$totalAll,
+        'expired_available'=>$expiredAll,
+        'requested'=>$qty,
+        'suggested_lots'=>$suggested,
+        'expired_lots'=>$expiredLotsAll
+      ], 409);
+    }
+
     json_out([
       'success'=>false,
       'code'=>'INSUFFICIENT_STOCK_TOTAL',

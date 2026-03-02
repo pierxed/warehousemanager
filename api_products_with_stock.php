@@ -31,10 +31,24 @@ try {
             WHEN m.type = 'ADJUSTMENT' THEN m.quantity
             ELSE 0
           END
-        ), 0) AS stock
+        ), 0) AS stock,
+        COALESCE(SUM(
+          CASE
+            WHEN (b.expiration_date IS NOT NULL AND b.expiration_date < CURDATE()) THEN
+              CASE
+                WHEN m.type = 'PRODUCTION' THEN m.quantity
+                WHEN m.type = 'SALE' THEN -m.quantity
+                WHEN m.type = 'ADJUSTMENT' THEN m.quantity
+                ELSE 0
+              END
+            ELSE 0
+          END
+        ), 0) AS expired_stock
       FROM products p
       LEFT JOIN lots l
         ON l.product_id = p.id
+      LEFT JOIN batches b
+        ON b.id = l.batch_id
       LEFT JOIN movements m
         ON m.lot_id = l.id
       GROUP BY

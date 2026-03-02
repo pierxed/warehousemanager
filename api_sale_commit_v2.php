@@ -18,6 +18,56 @@ try {
   $requestedLots = $data['lots'] ?? [];
   if (!is_array($requestedLots)) $requestedLots = [];
 
+  // Calcola stock totale + stock scaduto (serve a dare un errore chiaro quando è tutto scaduto)
+  $stmtAll = $pdo->prepare("
+    SELECT
+      l.id AS lot_id,
+      b.lot_number,
+      b.expiration_date,
+      b.production_date,
+      COALESCE(SUM(CASE
+        WHEN m.type='PRODUCTION' THEN m.quantity
+        WHEN m.type='SALE' THEN -m.quantity
+        WHEN m.type='ADJUSTMENT' THEN m.quantity
+        ELSE 0
+      END), 0) AS stock
+    FROM lots l
+    JOIN batches b ON b.id = l.batch_id
+    LEFT JOIN movements m ON m.lot_id = l.id
+    WHERE l.product_id = ?
+    GROUP BY l.id, b.lot_number, b.expiration_date, b.production_date
+    HAVING stock > 0
+    ORDER BY b.expiration_date ASC, b.production_date ASC, l.id ASC
+  ");
+  $stmtAll->execute([$product_id]);
+  $lotsAll = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+  $today = new DateTimeImmutable('today');
+  $expiredLotsAll = [];
+  $totalAll = 0;
+  $expiredAll = 0;
+  $stockByLotAll = [];
+  $expiredByLot = [];
+  foreach ($lotsAll as $r) {
+    $lid = (int)$r['lot_id'];
+    $st = (int)$r['stock'];
+    $totalAll += $st;
+    $stockByLotAll[$lid] = $st;
+    $exp = $r['expiration_date'] ? DateTimeImmutable::createFromFormat('Y-m-d', substr((string)$r['expiration_date'],0,10)) : null;
+    $isExpired = ($exp !== null && $exp < $today);
+    $expiredByLot[$lid] = $isExpired;
+    if ($isExpired) {
+      $expiredAll += $st;
+      $expiredLotsAll[] = [
+        'lot_id' => $lid,
+        'lot_number' => $r['lot_number'],
+        'expiration_date' => $r['expiration_date'],
+        'production_date' => $r['production_date'],
+        'stock' => $st,
+      ];
+    }
+  }
+
   $pdo->beginTransaction();
 
   // Query FEFO con lock
@@ -86,6 +136,20 @@ try {
       $lot_id = (int)$row['lot_id'];
       $need = (int)$row['qty'];
       $avail = $stockByLot[$lot_id] ?? 0;
+
+      // lotto esiste ma è scaduto => blocca con messaggio esplicito
+      if (($avail <= 0) && (($stockByLotAll[$lot_id] ?? 0) > 0) && (($expiredByLot[$lot_id] ?? false) === true)) {
+        $pdo->rollBack();
+        json_out([
+          'success'=>false,
+          'code'=>'LOT_EXPIRED',
+          'error'=>'Lotto scaduto: vendita bloccata',
+          'lot_id'=>$lot_id,
+          'expired_available'=>$stockByLotAll[$lot_id],
+          'suggested_lots'=>$suggested,
+          'expired_lots'=>$expiredLotsAll
+        ], 409);
+      }
       if ($avail < $need) {
         $pdo->rollBack();
         $chosen = array_flip(array_map(fn($p)=> (int)$p['lot_id'], $plan));
@@ -109,6 +173,21 @@ try {
 
     if ($totalAvailable < $qty) {
       $pdo->rollBack();
+
+      if ($totalAll >= $qty && $expiredAll > 0) {
+        json_out([
+          'success'=>false,
+          'code'=>'EXPIRED_STOCK_BLOCKED',
+          'error'=>'Stock presente ma scaduto: vendita bloccata',
+          'available_non_expired'=>$totalAvailable,
+          'available_total'=>$totalAll,
+          'expired_available'=>$expiredAll,
+          'requested'=>$qty,
+          'suggested_lots'=>$suggested,
+          'expired_lots'=>$expiredLotsAll
+        ], 409);
+      }
+
       json_out([
         'success'=>false,
         'code'=>'INSUFFICIENT_STOCK_TOTAL',
