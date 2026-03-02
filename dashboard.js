@@ -2504,6 +2504,7 @@ const DEFAULT_INV_FILTERS = {
   fishType: '',
   chips: {
     expiring: false,
+    hideExpired: false,
     lowStock: false,
     zeroStock: false,
     onlyFefo: false,
@@ -2674,7 +2675,7 @@ function initInventoryFilterBar(){
       }
 
       // chip che non hanno senso nella vista corrente: ignorale
-      if(INVENTORY_VIEW === 'products' && key === 'onlyFefo') return;
+      if(INVENTORY_VIEW === 'products' && (key === 'onlyFefo' || key === 'hideExpired')) return;
 
       if(key === 'lowStock' && !invLowStockEnabled()) return;
 
@@ -2769,7 +2770,7 @@ function applyInventoryFilterUiFromState(){
       // "Solo attivi" ora vale anche per i lotti (nasconde lotti di prodotti archiviati)
       btn.style.display = '';
     }else{
-      btn.style.display = (k === 'onlyFefo') ? 'none' : '';
+      btn.style.display = (k === 'onlyFefo' || k === 'hideExpired') ? 'none' : '';
     }
 
     if(k === 'lowStock'){
@@ -3095,6 +3096,7 @@ function filterAndSortInventoryLots(rows, tokens){
   const fishFilter = String(INVENTORY_FILTERS.fishType||'').trim();
   const onlyActive = !!INVENTORY_FILTERS.chips.onlyActive;
   const expiring = !!INVENTORY_FILTERS.chips.expiring;
+  const hideExpired = !!INVENTORY_FILTERS.chips.hideExpired;
   const lowStock = !!INVENTORY_FILTERS.chips.lowStock && invLowStockEnabled();
   const zeroStock = !!INVENTORY_FILTERS.chips.zeroStock;
   const onlyFefo = !!INVENTORY_FILTERS.chips.onlyFefo;
@@ -3127,6 +3129,12 @@ function filterAndSortInventoryLots(rows, tokens){
 
     if(expiring){
       if(!invIsExpiring(r.expiration_date || '')) return false;
+    }
+
+    // Nascondi scaduti (solo UI): se il lotto è marcato come scaduto dal backend, non mostrarlo.
+    if(hideExpired){
+      const isExpired = Number(r.is_expired ?? 0) === 1;
+      if(isExpired) return false;
     }
 
     if(onlyFefo){

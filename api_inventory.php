@@ -117,13 +117,23 @@ foreach ($lots as $r) {
     $byProduct[$pid]['expired_lots_count'] += 1;
   }
 
-  // FEFO = scadenza più vicina (solo se scadenza esiste e stock > 0)
-  if (!empty($r['expiration_date']) && $stock > 0) {
-    $curr = $byProduct[$pid]['fefo_expiration_date'];
-    if ($curr === null || $r['expiration_date'] < $curr) {
-      $byProduct[$pid]['fefo_expiration_date'] = $r['expiration_date'];
-      $byProduct[$pid]['fefo_lot_number'] = $r['lot_number'];
-      $byProduct[$pid]['fefo_lot_id'] = (int)$r['lot_id'];
+  // FEFO vendibile = scadenza più vicina tra i lotti NON scaduti (stock > 0)
+  // Preferisce lotti con expiration_date valorizzata; fallback su lotti senza scadenza (se non c'è altro).
+  if ($stock > 0 && empty($r['is_expired'])) {
+    if (!empty($r['expiration_date'])) {
+      $curr = $byProduct[$pid]['fefo_expiration_date'];
+      if ($curr === null || $r['expiration_date'] < $curr) {
+        $byProduct[$pid]['fefo_expiration_date'] = $r['expiration_date'];
+        $byProduct[$pid]['fefo_lot_number'] = $r['lot_number'];
+        $byProduct[$pid]['fefo_lot_id'] = (int)$r['lot_id'];
+      }
+    } else {
+      // Fallback: nessuna scadenza, ma almeno è vendibile
+      if ($byProduct[$pid]['fefo_lot_id'] === null) {
+        $byProduct[$pid]['fefo_expiration_date'] = null;
+        $byProduct[$pid]['fefo_lot_number'] = $r['lot_number'];
+        $byProduct[$pid]['fefo_lot_id'] = (int)$r['lot_id'];
+      }
     }
   }
 }

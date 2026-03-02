@@ -925,10 +925,9 @@ mark.hl{ background: #facc15 !important; color: #111827 !important; padding: 0 2
 }
 
 .pill-mini.pill-exp{
-  background: rgba(220,38,38,.12);
-  border-color: rgba(220,38,38,.35);
-  color: #7f1d1d;
-  font-weight: 900;
+  background: rgba(245,158,11,.10);
+  border-color: rgba(245,158,11,.25);
+  color: #92400e;
 }
 .pill-mini.pill-exp.danger{
   background: rgba(220,38,38,.08);
