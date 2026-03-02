@@ -50,6 +50,25 @@ function coerceBool(v){
   return ['1','true','yes','on'].includes(s);
 }
 
+
+// ==========================
+// EXPORT (v0.4)
+// ==========================
+function triggerDownload(url){
+  try{
+    const a = document.createElement('a');
+    a.href = url;
+    a.rel = 'noopener';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }catch(e){
+    // fallback
+    window.open(url, '_blank');
+  }
+}
+
 function normalizeSettings(raw){
   const out = { ...DEFAULT_SETTINGS };
   if(!raw || typeof raw !== 'object') return out;
@@ -642,6 +661,19 @@ async function loadHomeDashboard(){
         scales:{ y:{ beginAtZero:true } }
       }
     });
+  }
+
+  // ✅ Home tasks (safe module call)
+  try{
+    if(window.WMHomeTasks && typeof window.WMHomeTasks.render === 'function'){
+      window.WMHomeTasks.render({
+        lotsWithStock,
+        movements,
+        settings: SETTINGS
+      });
+    }
+  }catch(e){
+    console.warn('WMHomeTasks error', e);
   }
 
   showExpiryToasts(expiringLots);
@@ -2320,7 +2352,7 @@ function activateTab(tabId){
     .forEach(b => b.classList.remove('active'));
 
   // nasconde tutte le tab
-  document.querySelectorAll('.tab-pane')
+  document.querySelectorAll('.tab')
     .forEach(p => p.classList.remove('active'));
 
   // trova bottone collegato
@@ -2374,6 +2406,15 @@ if(btnTop){
         }
       });
     }
+
+  // export CSV (v0.4)
+  document.getElementById('inv_moves_export')?.addEventListener('click', ()=>{
+    triggerDownload('exports/api_export_movements.php');
+  });
+
+  document.getElementById('stock_export')?.addEventListener('click', ()=>{
+    triggerDownload('exports/api_export_stock.php');
+  });
 
   // toggle prodotti archiviati (UNICO)
   document

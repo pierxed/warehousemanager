@@ -8,7 +8,9 @@
 <link href="styles.css" rel="stylesheet"/>
 <link href="analytics/analytics_tab.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link href="backup/backup_manager.css" rel="stylesheet"/></head>
+<link href="backup/backup_manager.css" rel="stylesheet"/>
+<link href="home_tasks/home_tasks.css" rel="stylesheet"/>
+</head>
 <body>
 <div class="app">
 <!-- SIDEBAR -->
@@ -42,7 +44,7 @@
 <button class="tab-btn" data-target="tab_settings" type="button">Impostazioni</button>
 </nav>
 <div class="sidebar-footer">
-<div class="pill">v0.3</div>
+<div class="pill">v0.5</div>
 <div class="muted">Locale (MAMP)</div>
 </div>
 </aside>
@@ -93,6 +95,23 @@
 </div>
 <!-- CONTENUTI HOME -->
 <div class="home-grid">
+<!-- TASKS / DA FARE -->
+<div class="card" id="home_tasks_card">
+  <div class="card-head">
+    <div>
+      <h3>Da fare oggi</h3>
+      <div class="muted" id="home_tasks_subtitle">Priorità automatiche</div>
+    </div>
+    <div class="home-tasks-actions">
+      <span class="wm-task-count" id="home_tasks_count">0</span>
+      <button class="wm-task-toggle" id="home_tasks_toggle" type="button">Mostra</button>
+    </div>
+  </div>
+  <div class="wm-tasks wm-tasks-compact is-collapsed" id="home_tasks_list">
+    <div class="muted">Caricamento…</div>
+  </div>
+</div>
+
 <!-- SCADENZE -->
 <div class="card">
 <div class="card-head">
@@ -731,55 +750,7 @@
 </div>
 </div>
 </section>
-<!-- STOCK -->
-<section class="tab" id="tab_stock">
-<div class="section-head">
-<h2 class="h2">Stock Totale</h2>
-<div class="muted">Vista per prodotto</div>
-</div>
-<div class="card">
-<div class="table-wrap">
-<table id="stock_table">
-<thead>
-<tr>
-<th>Tipo Pesce</th>
-<th>Prodotto</th>
-<th>Formato</th>
-<th>EAN</th>
-<th>Stock (barattoli)</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-</div>
-</div>
-</section>
-<!-- LOTTI -->
-<section class="tab" id="tab_lots">
-<div class="section-head">
-<h2 class="h2">Lotti Dettagliati</h2>
-<div class="muted">Vista completa</div>
-</div>
-<div class="card">
-<div class="table-wrap">
-<table id="lots_table">
-<thead>
-<tr>
-<th>Pesce</th>
-<th>Prodotto</th>
-<th>Formato</th>
-<th>EAN</th>
-<th>Lotto</th>
-<th>Stock</th>
-<th>Produzione</th>
-<th>Scadenza</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-</div>
-</div>
-</section>
+
 <!-- MAGAZZINO -->
 <section class="tab" id="tab_inventory">
 <h2>Magazzino</h2>
@@ -861,6 +832,7 @@
 <div class="muted">Tutti i movimenti • 10 per pagina</div>
 </div>
 <div class="row" style="gap:8px; align-items:center;">
+<button class="btn-secondary" id="inv_moves_export" style="padding:6px 10px; border-radius:10px;" type="button">Export CSV</button>
 <span class="muted" id="inv_moves_count">0</span>
 <button class="btn-secondary" id="inv_moves_prev" style="padding:6px 10px; border-radius:10px;" type="button">←</button>
 <span class="pill" id="inv_moves_page" style="padding:6px 10px;">1/1</span>
@@ -891,6 +863,7 @@
 </main>
 </div>
 <script src="dashboard.js"></script>
+<script src="home_tasks/home_tasks.js"></script>
 <script src="analytics/analytics_tab.js"></script>
 <script>
     window.addEventListener("DOMContentLoaded", () => {
