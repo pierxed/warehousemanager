@@ -40,10 +40,9 @@ try {
     $params[':pid'] = $product_id;
   }
 
-  $qtyExpr = ($unit === 'trays')
-    ? "(m.quantity / NULLIF(p.units_per_tray, 0))"
+$qtyExpr = ($unit === 'trays')
+    ? "FLOOR(m.quantity / NULLIF(p.units_per_tray, 0))"
     : "m.quantity";
-
   $sql = "
     SELECT
       COALESCE(SUM(CASE WHEN m.type='SALE' THEN $qtyExpr ELSE 0 END), 0) AS total_sold,
