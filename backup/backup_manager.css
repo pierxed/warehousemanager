@@ -1,6 +1,6 @@
 
-/* Scoped styles for Backup manager + settings block */
-#tab_backup_manager .backup-actions,
+/* Scoped styles for Backup manager (modal) + settings block */
+#backup_modal .backup-actions,
 #tab_settings .backup-settings-actions{
   display:flex;
   flex-wrap:wrap;
@@ -8,25 +8,71 @@
   align-items:center;
 }
 
-#tab_backup_manager .backup-actions .muted{
+#backup_modal .backup-actions .muted{
   margin-left:auto;
 }
 
-#tab_backup_manager .table-wrap{
+#backup_modal .table-wrap{
   overflow:auto;
 }
 
-#tab_backup_manager td .btn{
+#backup_modal td .btn{
   padding:6px 10px;
   font-size:12px;
 }
 
-#tab_backup_manager .btn + .btn{
+#backup_modal .btn + .btn{
   margin-left:8px;
 }
 
+/* Modal shell */
+.wm-modal{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  padding:18px;
+  background:rgba(0,0,0,0.55);
+  z-index:9999;
+  overflow:auto;
+}
+.wm-modal.hidden{ display:none; }
+
+.wm-modal-card{
+  width:min(980px, 100%);
+  margin-top:24px;
+  border-radius:16px;
+  padding:14px;
+  background:#0b1220;
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 16px 40px rgba(0,0,0,.45);
+}
+
+.wm-modal-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.wm-modal-title{
+  font-weight:900;
+  font-size:18px;
+}
+
+.wm-modal-x{
+  width:36px;
+  height:36px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06);
+  color:inherit;
+  cursor:pointer;
+}
+
 @media (max-width: 640px){
-  #tab_backup_manager .backup-actions .muted{
+  #backup_modal .backup-actions .muted{
     margin-left:0;
     width:100%;
   }
@@ -37,4 +83,92 @@
     flex:1;
     min-width:140px;
   }
+
+  .wm-modal{
+    padding:10px;
+  }
+  .wm-modal-card{
+    margin-top:10px;
+  }
+}
+
+/* Backup modal = stesso stile del gestionale */
+#backup_modal.qa-modal{
+  background: rgba(0,0,0,.35); /* stesso di .qa-modal */
+}
+
+/* se vuoi un filo più “soft” */
+#backup_modal.qa-modal{
+  background: rgba(15,23,42,.18);
+}
+
+/* contenuto scrollabile se la lista è lunga */
+#backup_modal .qa-card{
+  max-height: min(78vh, 720px);
+  overflow: auto;
+}
+
+/* allinea la tabella allo stile generale */
+#backup_modal .table-wrap{
+  overflow:auto;
+}
+
+/* =====================================
+   Backup modal – secondary buttons
+   ===================================== */
+
+#backup_modal button{
+  appearance: none;
+  font: inherit;
+  padding: 7px 14px;
+  border-radius: 10px;
+
+  background: var(--surface, #f8fafc);
+  color: var(--text, #0f172a);
+
+  border: 1px solid rgba(15,23,42,.12);
+  cursor: pointer;
+
+  transition:
+    background .18s ease,
+    border-color .18s ease,
+    transform .08s ease,
+    box-shadow .18s ease;
+}
+
+/* hover */
+#backup_modal button:hover{
+  background: #ffffff;
+  border-color: rgba(15,23,42,.22);
+  box-shadow: 0 2px 6px rgba(15,23,42,.06);
+  transform: translateY(-1px);
+}
+
+/* click */
+#backup_modal button:active{
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(15,23,42,.08) inset;
+}
+
+/* focus accessibile */
+#backup_modal button:focus-visible{
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(59,130,246,.25);
+}
+
+/* delete action */
+#backup_modal .btn-delete{
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+
+#backup_modal .btn-delete:hover{
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+#backup_modal .actions button + button{
+  margin-left:8px;
 }

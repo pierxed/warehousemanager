@@ -4,6 +4,23 @@
 
   const $ = (id)=>document.getElementById(id);
 
+  // ---- Modal helpers ----
+  function openBackupModal(){
+    const m = $('backup_modal');
+    if(!m) return;
+    m.classList.remove('hidden');
+    m.setAttribute('aria-hidden','false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeBackupModal(){
+    const m = $('backup_modal');
+    if(!m) return;
+    m.classList.add('hidden');
+    m.setAttribute('aria-hidden','true');
+    document.body.style.overflow = '';
+  }
+
   function setMsg(el, text, cls='muted'){
     if(!el) return;
     el.className = cls;
@@ -83,7 +100,7 @@
             <td>${inc}</td>
             <td>
               <a class="btn" href="${dl}">Scarica</a>
-              <button class="btn danger" data-del="${name}" type="button">Elimina</button>
+              <button class="btn-delete" data-del="${name}" type="button">Elimina</button>
             </td>
           </tr>
         `;
@@ -141,7 +158,7 @@
   // Settings page buttons
   function bindSettingsButtons(){
     $('btn_backup_manage')?.addEventListener('click', ()=>{
-      activateTab('tab_backup_manager');
+      openBackupModal();
       listBackups();
     });
 
@@ -167,8 +184,20 @@
   function bindManagerButtons(){
     $('btn_backup_refresh')?.addEventListener('click', listBackups);
     $('btn_backup_create_now')?.addEventListener('click', ()=>createBackup('manual'));
-    $('btn_backup_back_to_settings')?.addEventListener('click', ()=>{
-      activateTab('tab_settings');
+    $('btn_backup_back_to_settings')?.addEventListener('click', closeBackupModal);
+    $('backup_modal_close')?.addEventListener('click', closeBackupModal);
+
+    // click outside card closes
+    $('backup_modal')?.addEventListener('click', (e)=>{
+      if(e.target && e.target.id === 'backup_modal') closeBackupModal();
+    });
+
+    // ESC closes
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape'){
+        const m = $('backup_modal');
+        if(m && !m.classList.contains('hidden')) closeBackupModal();
+      }
     });
   }
 
@@ -181,6 +210,7 @@
   // Expose minimal API for other modules (optional)
   window.BackupManager = {
     refresh: listBackups,
-    open: ()=>{ activateTab('tab_backup_manager'); listBackups(); }
+    open: ()=>{ openBackupModal(); listBackups(); },
+    close: closeBackupModal
   };
 })();

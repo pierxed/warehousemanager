@@ -441,8 +441,8 @@
 <div class="field">
 <label class="label">Azioni</label>
 <div class="backup-settings-actions">
-<button class="btn primary" id="btn_backup_run_now" type="button">Esegui backup ora</button>
-<button class="btn" id="btn_backup_manage" type="button">Gestisci backup</button>
+<button class="btn-soft" id="btn_backup_run_now" type="button">Esegui backup ora</button>
+<button class="btn-soft" id="btn_backup_manage" type="button">Gestisci backup</button>
 </div>
 <div class="hint muted" id="backup_run_message"></div>
 </div>
@@ -877,46 +877,7 @@
 </section>
 </div>
 
-<section class="tab" id="tab_backup_manager">
-<div class="section-head">
-<h2 class="h2">Gestione backup</h2>
-<div class="muted">Lista backup e download</div>
-</div>
-<div class="card">
-<div class="card-head">
-<h3>Azioni</h3>
-<div class="muted">Crea, scarica, elimina</div>
-</div>
-<div class="backup-actions">
-<button class="btn primary" id="btn_backup_create_now" type="button">Crea backup adesso</button>
-<button class="btn" id="btn_backup_refresh" type="button">Aggiorna lista</button>
-<button class="btn" id="btn_backup_back_to_settings" type="button">Torna alle impostazioni</button>
-<div class="muted" id="backup_manager_message"></div>
-</div>
-</div>
-<div class="card">
-<div class="card-head">
-<h3>Backup disponibili</h3>
-<div class="muted">I file sono salvati sul server</div>
-</div>
-<div class="table-wrap">
-<table class="table" id="backup_table">
-<thead>
-<tr>
-<th>Data</th>
-<th>Tipo</th>
-<th>Dimensione</th>
-<th>Include</th>
-<th>Azioni</th>
-</tr>
-</thead>
-<tbody id="backup_table_body">
-<tr><td class="muted" colspan="5">Nessun backup</td></tr>
-</tbody>
-</table>
-</div>
-</div>
-</section>
+<!-- Backup manager moved to a modal (was tab_backup_manager) -->
 </main>
 </div>
 <script src="dashboard.js"></script>
@@ -979,6 +940,52 @@
 <div id="qa_body"></div>
 <div class="muted" id="qa_msg" style="margin-top:10px;"></div>
 </div>
+</div>
+
+<!-- Backup manager modal -->
+<div id="backup_modal" class="qa-modal hidden">
+  <div class="qa-card" style="width:min(980px,100%);">
+    <div class="qa-head">
+      <div class="qa-title">Gestione backup</div>
+      <button type="button" id="backup_modal_close" class="qa-x">✕</button>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="card-head">
+        <h3>Azioni</h3>
+        <div class="muted">Crea, scarica, elimina</div>
+      </div>
+      <div class="backup-actions">
+        <button class="btn primary" id="btn_backup_create_now" type="button">Crea backup adesso</button>
+        <button class="btn" id="btn_backup_refresh" type="button">Aggiorna lista</button>
+        <button class="btn" id="btn_backup_back_to_settings" type="button">Chiudi</button>
+        <div class="muted" id="backup_manager_message"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>Backup disponibili</h3>
+        <div class="muted">I file sono salvati sul server</div>
+      </div>
+      <div class="table-wrap">
+        <table class="table" id="backup_table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Dimensione</th>
+              <th>Include</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="backup_table_body">
+            <tr><td class="muted" colspan="5">Nessun backup</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 <button aria-label="Torna su" class="back-to-top" id="backToTop" type="button">⬆️</button>
 <script src="backup/backup_manager.js"></script></body>
