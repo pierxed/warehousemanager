@@ -1,944 +1,921 @@
 <!DOCTYPE html>
+
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gestionale Magazzino</title>
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="analytics/analytics_tab.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Gestionale Magazzino</title>
+<link href="styles.css" rel="stylesheet"/>
+<link href="analytics/analytics_tab.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="backup/backup_manager.css" rel="stylesheet"/></head>
 <body>
-  <div class="app">
-
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-title">Gestionale</div>
-        <div class="brand-sub">Warehouse Manager</div>
-      </div>
-      <button class="menu-toggle" id="menu_toggle" type="button" aria-expanded="false">
+<div class="app">
+<!-- SIDEBAR -->
+<aside class="sidebar">
+<div class="brand">
+<div class="brand-title">Gestionale</div>
+<div class="brand-sub">Warehouse Manager</div>
+</div>
+<button aria-expanded="false" class="menu-toggle" id="menu_toggle" type="button">
         ☰ Menu
       </button>
-
-      <!-- Tabs: stessi bottoni e data-target -->
-      <nav class="tabs sidebar-nav">
-        <button class="tab-btn active" data-target="tab_home" type="button">Home</button>
-        <button class="tab-btn" data-target="tab_products" type="button">Prodotti</button>
-        <button class="tab-btn" data-target="tab_production" type="button">Produzione</button>
-        <button class="tab-btn" data-target="tab_sale" type="button">Vendita</button>
-        <button class="tab-btn" data-target="tab_adjust" type="button">Rettifica</button>
-        <button class="tab-btn" data-target="tab_inventory">Magazzino</button>
-        <button class="tab-btn" data-target="tab_analytics" type="button">Analisi</button>
-        <button class="tab-btn" data-target="tab_settings" type="button">Impostazioni</button>
-      </nav>
-
-      <div class="sidebar-footer">
-        <div class="pill">v0.3</div>
-        <div class="muted">Locale (MAMP)</div>
-      </div>
-    </aside>
-
-    <!-- MAIN -->
-    <main class="main">
-      <!-- TOPBAR -->
-      <header class="topbar">
-        <div>
-          <h1 class="page-title">Gestionale Magazzino</h1>
-          <p class="page-subtitle">Produzione, stock e lotti — tutto in un posto</p>
-        </div>
-
-        <div class="topbar-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          
-          <div class="inv-search global-search">
-            <span class="inv-search-icon">🔎</span>
-            <input id="global_search" class="input" placeholder="Cerca (EAN, lotto, prodotto)..." autocomplete="off" />
-            <button id="global_search_clear" type="button" class="inv-search-clear" title="Svuota" aria-label="Svuota">✖</button>
-          </div>
-
-          <!-- Manteniamo questi ID per compatibilità (ma li teniamo nascosti) -->
-          <div id="global_search_hint" class="muted" style="display:none; align-items:center; gap:8px;">
-            <span>Filtro attivo:</span>
-            <span id="global_search_hint_text" class="pill" style="padding:6px 10px;"></span>
-          </div>
+<!-- Tabs: stessi bottoni e data-target -->
+<nav class="tabs sidebar-nav">
+<button class="tab-btn active" data-target="tab_home" type="button">Home</button>
+<button class="tab-btn" data-target="tab_products" type="button">Prodotti</button>
+<button class="tab-btn" data-target="tab_production" type="button">Produzione</button>
+<button class="tab-btn" data-target="tab_sale" type="button">Vendita</button>
+<button class="tab-btn" data-target="tab_adjust" type="button">Rettifica</button>
+<button class="tab-btn" data-target="tab_inventory">Magazzino</button>
+<button class="tab-btn" data-target="tab_analytics" type="button">Analisi</button>
+<button class="tab-btn" data-target="tab_settings" type="button">Impostazioni</button>
+</nav>
+<div class="sidebar-footer">
+<div class="pill">v0.3</div>
+<div class="muted">Locale (MAMP)</div>
 </div>
-      </header>
-
-      <!-- Toasts: non tocchiamo ID -->
-      <div id="expiry_toasts"></div>
-
-      <div class="container">
-
-        <!-- HOME -->
-        <section id="tab_home" class="tab active">
-
-          <div class="section-head">
-            <h2 class="h2">Home</h2>
-            <div class="muted">Riepilogo rapido</div>
-          </div>
-
-          <!-- KPI -->
-          <div class="dashboard-cards">
-            <div class="card kpi">
-              <h3>Stock totale (barattoli)</h3>
-              <p id="card_total_stock">0</p>
-            </div>
-
-            <div class="card kpi">
-              <h3 id="card_expiring_label">Lotti in scadenza &lt; 30gg</h3>
-              <p id="card_expiring">0</p>
-            </div>
-
-            <div class="card kpi">
-              <h3>Barattoli prodotti oggi</h3>
-              <p id="card_today_production">0</p>
-            </div>
-          </div>
-
-          <!-- CONTENUTI HOME -->
-          <div class="home-grid">
-
-            <!-- SCADENZE -->
-            <div class="card">
-              <div class="card-head">
-                <h3>Scadenze</h3>
-                <div id="expiry_subtitle" class="muted">Solo stock &gt; 0</div>
-              </div>
-
-              <div class="home-split">
-                <div class="mini-block">
-                  <div class="mini-title">
-                    <span class="badge danger">0–7 giorni</span>
-                  </div>
-
-                  <div class="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Prodotto</th>
-                          <th>Lotto</th>
-                          <th>Stock</th>
-                          <th>Scad.</th>
-                        </tr>
-                      </thead>
-                      <tbody id="expiry_7_table"></tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div class="mini-block">
-                  <div class="mini-title">
-                    <span id="badge_expiry_mid" class="badge warn">8–30 giorni</span>
-                  </div>
-
-                  <div class="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Prodotto</th>
-                          <th>Lotto</th>
-                          <th>Stock</th>
-                          <th>Scad.</th>
-                        </tr>
-                      </thead>
-                      <tbody id="expiry_30_table"></tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ULTIMI MOVIMENTI -->
-            <div class="card">
-              <div class="card-head">
-                <h3>Ultimi movimenti</h3>
-                <div class="muted">Ultimi 10</div>
-              </div>
-
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>Tipo</th>
-                      <th>Prodotto</th>
-                      <th>Lotto</th>
-                      <th>Scad.</th>
-                      <th>Q.tà</th>
-                    </tr>
-                  </thead>
-                  <tbody id="last_moves_table"></tbody>
-                </table>
-              </div>
-            </div>
-
-            <!-- GRAFICO VENDITE TOP -->
-            <div class="card">
-              <div class="card-head">
-                <h3>Top vendite per prodotto</h3>
-                <div class="muted">Ultimi 30 giorni</div>
-              </div>
-
-              <div class="chart-wrap">
-                <canvas id="salesChart"></canvas>
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        
-        <!-- ANALISI -->
-        <section id="tab_analytics" class="tab">
-          <div class="section-head">
-            <h2 class="h2">Analisi</h2>
-            <div class="muted">Grafici e indicatori aziendali (da movimenti, lotti e scadenze)</div>
-          </div>
-
-          <div id="analytics_error"></div>
-
-          <div id="analytics_panel">
-            <div class="analytics-toolbar">
-              <div class="field narrow">
-                <label class="label">Periodo</label>
-                <select id="analytics_preset" class="input">
-                  <option value="today">Oggi</option>
-                  <option value="7d" selected>Ultimi 7 giorni</option>
-                  <option value="30d">Ultimi 30 giorni</option>
-                  <option value="month">Mese corrente</option>
-                </select>
-              </div>
-
-              <div class="field narrow">
-                <label class="label">Dal</label>
-                <input id="analytics_start" type="date" class="input" />
-              </div>
-
-              <div class="field narrow">
-                <label class="label">Al</label>
-                <input id="analytics_end" type="date" class="input" />
-              </div>
-
-              <div class="field">
-                <label class="label">Tipo pesce</label>
-                <select id="analytics_fish_type" class="input">
-                  <option value="">Tutti</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label class="label">Prodotto</label>
-                <select id="analytics_product_id" class="input">
-                  <option value="">Tutti</option>
-                </select>
-              </div>
-
-              <div class="field narrow">
-                <label class="label">Unità</label>
-                <select id="analytics_unit" class="input">
-                  <option value="units" selected>Unità</option>
-                  <option value="trays">Vassoi</option>
-                </select>
-              </div>
-
-              <div class="analytics-actions">
-                <button id="analytics_refresh" type="button" class="btn-primary">Aggiorna</button>
-              </div>
-            </div>
-
-            <div class="dashboard-cards" style="margin-top: var(--gap);">
-              <div class="card kpi">
-                <h3>Venduto</h3>
-                <p id="analytics_kpi_sold">0</p>
-              </div>
-              <div class="card kpi">
-                <h3>Prodotto</h3>
-                <p id="analytics_kpi_produced">0</p>
-              </div>
-              <div class="card kpi">
-                <h3>Rettifiche OUT</h3>
-                <p id="analytics_kpi_adjust_out">0</p>
-              </div>
-              <div class="card kpi">
-                <h3>Saldo</h3>
-                <p id="analytics_kpi_net">0</p>
-              </div>
-            </div>
-
-            <div class="analytics-grid" style="margin-top: var(--gap);">
-              <div class="card span-12">
-                <div class="section-head" style="margin-bottom: 8px;">
-                  <h3 class="h3">Produzione vs Vendita</h3>
-                  <div class="muted">Andamento giornaliero nel periodo</div>
-                </div>
-                <div class="chart-box tall">
-                  <canvas id="analytics_chart_trends"></canvas>
-                </div>
-              </div>
-
-              <div class="card span-6">
-                <div class="section-head" style="margin-bottom: 8px;">
-                  <h3 class="h3">Top prodotti venduti</h3>
-                  <div class="muted">Top 10 nel periodo</div>
-                </div>
-                <div class="chart-box">
-                  <canvas id="analytics_chart_top"></canvas>
-                </div>
-              </div>
-
-              <div class="card span-6">
-                <div class="section-head" style="margin-bottom: 8px;">
-                  <h3 class="h3">Rettifiche OUT per motivo</h3>
-                  <div class="muted">Solo rettifiche in uscita</div>
-                </div>
-                <div class="chart-box">
-                  <canvas id="analytics_chart_adjust"></canvas>
-                </div>
-              </div>
-
-              <div class="card span-12">
-                <div class="section-head" style="margin-bottom: 8px;">
-                  <h3 class="h3">Rischio scadenze (stock attuale)</h3>
-                  <div class="muted">
+</aside>
+<!-- MAIN -->
+<main class="main">
+<!-- TOPBAR -->
+<header class="topbar">
+<div>
+<h1 class="page-title">Gestionale Magazzino</h1>
+<p class="page-subtitle">Produzione, stock e lotti — tutto in un posto</p>
+</div>
+<div class="topbar-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+<div class="inv-search global-search">
+<span class="inv-search-icon">🔎</span>
+<input autocomplete="off" class="input" id="global_search" placeholder="Cerca (EAN, lotto, prodotto)..."/>
+<button aria-label="Svuota" class="inv-search-clear" id="global_search_clear" title="Svuota" type="button">✖</button>
+</div>
+<!-- Manteniamo questi ID per compatibilità (ma li teniamo nascosti) -->
+<div class="muted" id="global_search_hint" style="display:none; align-items:center; gap:8px;">
+<span>Filtro attivo:</span>
+<span class="pill" id="global_search_hint_text" style="padding:6px 10px;"></span>
+</div>
+</div>
+</header>
+<!-- Toasts: non tocchiamo ID -->
+<div id="expiry_toasts"></div>
+<div class="container">
+<!-- HOME -->
+<section class="tab active" id="tab_home">
+<div class="section-head">
+<h2 class="h2">Home</h2>
+<div class="muted">Riepilogo rapido</div>
+</div>
+<!-- KPI -->
+<div class="dashboard-cards">
+<div class="card kpi">
+<h3>Stock totale (barattoli)</h3>
+<p id="card_total_stock">0</p>
+</div>
+<div class="card kpi">
+<h3 id="card_expiring_label">Lotti in scadenza &lt; 30gg</h3>
+<p id="card_expiring">0</p>
+</div>
+<div class="card kpi">
+<h3>Barattoli prodotti oggi</h3>
+<p id="card_today_production">0</p>
+</div>
+</div>
+<!-- CONTENUTI HOME -->
+<div class="home-grid">
+<!-- SCADENZE -->
+<div class="card">
+<div class="card-head">
+<h3>Scadenze</h3>
+<div class="muted" id="expiry_subtitle">Solo stock &gt; 0</div>
+</div>
+<div class="home-split">
+<div class="mini-block">
+<div class="mini-title">
+<span class="badge danger">0–7 giorni</span>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Prodotto</th>
+<th>Lotto</th>
+<th>Stock</th>
+<th>Scad.</th>
+</tr>
+</thead>
+<tbody id="expiry_7_table"></tbody>
+</table>
+</div>
+</div>
+<div class="mini-block">
+<div class="mini-title">
+<span class="badge warn" id="badge_expiry_mid">8–30 giorni</span>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Prodotto</th>
+<th>Lotto</th>
+<th>Stock</th>
+<th>Scad.</th>
+</tr>
+</thead>
+<tbody id="expiry_30_table"></tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<!-- ULTIMI MOVIMENTI -->
+<div class="card">
+<div class="card-head">
+<h3>Ultimi movimenti</h3>
+<div class="muted">Ultimi 10</div>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>Tipo</th>
+<th>Prodotto</th>
+<th>Lotto</th>
+<th>Scad.</th>
+<th>Q.tà</th>
+</tr>
+</thead>
+<tbody id="last_moves_table"></tbody>
+</table>
+</div>
+</div>
+<!-- GRAFICO VENDITE TOP -->
+<div class="card">
+<div class="card-head">
+<h3>Top vendite per prodotto</h3>
+<div class="muted">Ultimi 30 giorni</div>
+</div>
+<div class="chart-wrap">
+<canvas id="salesChart"></canvas>
+</div>
+</div>
+</div>
+</section>
+<!-- ANALISI -->
+<section class="tab" id="tab_analytics">
+<div class="section-head">
+<h2 class="h2">Analisi</h2>
+<div class="muted">Grafici e indicatori aziendali (da movimenti, lotti e scadenze)</div>
+</div>
+<div id="analytics_error"></div>
+<div id="analytics_panel">
+<div class="analytics-toolbar">
+<div class="field narrow">
+<label class="label">Periodo</label>
+<select class="input" id="analytics_preset">
+<option value="today">Oggi</option>
+<option selected="" value="7d">Ultimi 7 giorni</option>
+<option value="30d">Ultimi 30 giorni</option>
+<option value="month">Mese corrente</option>
+</select>
+</div>
+<div class="field narrow">
+<label class="label">Dal</label>
+<input class="input" id="analytics_start" type="date"/>
+</div>
+<div class="field narrow">
+<label class="label">Al</label>
+<input class="input" id="analytics_end" type="date"/>
+</div>
+<div class="field">
+<label class="label">Tipo pesce</label>
+<select class="input" id="analytics_fish_type">
+<option value="">Tutti</option>
+</select>
+</div>
+<div class="field">
+<label class="label">Prodotto</label>
+<select class="input" id="analytics_product_id">
+<option value="">Tutti</option>
+</select>
+</div>
+<div class="field narrow">
+<label class="label">Unità</label>
+<select class="input" id="analytics_unit">
+<option selected="" value="units">Unità</option>
+<option value="trays">Vassoi</option>
+</select>
+</div>
+<div class="analytics-actions">
+<button class="btn-primary" id="analytics_refresh" type="button">Aggiorna</button>
+</div>
+</div>
+<div class="dashboard-cards" style="margin-top: var(--gap);">
+<div class="card kpi">
+<h3>Venduto</h3>
+<p id="analytics_kpi_sold">0</p>
+</div>
+<div class="card kpi">
+<h3>Prodotto</h3>
+<p id="analytics_kpi_produced">0</p>
+</div>
+<div class="card kpi">
+<h3>Rettifiche OUT</h3>
+<p id="analytics_kpi_adjust_out">0</p>
+</div>
+<div class="card kpi">
+<h3>Saldo</h3>
+<p id="analytics_kpi_net">0</p>
+</div>
+</div>
+<div class="analytics-grid" style="margin-top: var(--gap);">
+<div class="card span-12">
+<div class="section-head" style="margin-bottom: 8px;">
+<h3 class="h3">Produzione vs Vendita</h3>
+<div class="muted">Andamento giornaliero nel periodo</div>
+</div>
+<div class="chart-box tall">
+<canvas id="analytics_chart_trends"></canvas>
+</div>
+</div>
+<div class="card span-6">
+<div class="section-head" style="margin-bottom: 8px;">
+<h3 class="h3">Top prodotti venduti</h3>
+<div class="muted">Top 10 nel periodo</div>
+</div>
+<div class="chart-box">
+<canvas id="analytics_chart_top"></canvas>
+</div>
+</div>
+<div class="card span-6">
+<div class="section-head" style="margin-bottom: 8px;">
+<h3 class="h3">Rettifiche OUT per motivo</h3>
+<div class="muted">Solo rettifiche in uscita</div>
+</div>
+<div class="chart-box">
+<canvas id="analytics_chart_adjust"></canvas>
+</div>
+</div>
+<div class="card span-12">
+<div class="section-head" style="margin-bottom: 8px;">
+<h3 class="h3">Rischio scadenze (stock attuale)</h3>
+<div class="muted">
                     Entro 7gg: <b id="analytics_exp_3">0</b> · Entro <span id="analytics_exp_alert_days">7</span>gg: <b id="analytics_exp_7">0</b> · Scaduti: <b id="analytics_exp_expired">0</b>
-                  </div>
-                </div>
-
-                <div class="table-wrap">
-                  <table class="table">
-                    <thead>
-                      <tr>
-                        <th>Prodotto</th>
-                        <th>Lotto</th>
-                        <th>Scadenza</th>
-                        <th style="text-align:right;">Stock</th>
-                      </tr>
-                    </thead>
-                    <tbody id="analytics_exp_table"></tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
+</div>
+</div>
+<div class="table-wrap">
+<table class="table">
+<thead>
+<tr>
+<th>Prodotto</th>
+<th>Lotto</th>
+<th>Scadenza</th>
+<th style="text-align:right;">Stock</th>
+</tr>
+</thead>
+<tbody id="analytics_exp_table"></tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</section>
 <!-- IMPOSTAZIONI -->
-        <section id="tab_settings" class="tab">
+<section class="tab" id="tab_settings">
+<div class="section-head">
+<h2 class="h2">Impostazioni</h2>
+<div class="muted">Preferenze operatore (salvate nel DB)</div>
+</div>
+<div class="settings-grid">
+<div class="card">
+<div class="card-head">
+<h3>Scadenze</h3>
+<div class="muted">Alert e filtri</div>
+</div>
+<div class="form-grid">
+<div class="field">
+<label class="label">Giorni alert</label>
+<input class="input" id="set_expiry_alert_days" max="365" min="1" step="1" type="number"/>
+<div class="hint muted">Esempio: 30 → mostra lotti che scadono entro 30 giorni</div>
+</div>
+<div class="field">
+<label class="label">Includi stock zero</label>
+<label class="toggle">
+<input id="set_expiry_include_zero_stock" type="checkbox"/>
+<span aria-hidden="true" class="toggle-ui"></span>
+<span class="toggle-text muted">Mostra anche lotti senza stock negli alert scadenze</span>
+</label>
+</div>
+</div>
+</div>
+<div class="card">
+<div class="card-head">
+<h3>Stock</h3>
+<div class="muted">Scorte minime</div>
+</div>
+<div class="form-grid">
+<div class="field">
+<label class="label">Abilita alert scorte minime</label>
+<label class="toggle">
+<input id="set_low_stock_alert_enabled" type="checkbox"/>
+<span aria-hidden="true" class="toggle-ui"></span>
+<span class="toggle-text muted">Evidenzia prodotti sotto soglia</span>
+</label>
+</div>
+<div class="field">
+<label class="label">Soglia unità</label>
+<input class="input" id="set_low_stock_threshold_units" max="100000" min="0" step="1" type="number"/>
+<div class="hint muted">Sotto questo numero lo stock viene marcato come “basso”</div>
+</div>
+</div>
+</div>
+<div class="card">
+<div class="card-head">
+<h3>Vendita</h3>
+<div class="muted">Default e conferme</div>
+</div>
+<div class="form-grid">
+<div class="field">
+<label class="label">Default FEFO / manuale</label>
+<select class="input" id="set_sale_default_mode">
+<option value="FEFO">FEFO (auto)</option>
+<option value="MANUAL">Manuale</option>
+</select>
+</div>
+<div class="field">
+<label class="label">Conferma prima del commit</label>
+<label class="toggle">
+<input id="set_confirm_sale_before_commit" type="checkbox"/>
+<span aria-hidden="true" class="toggle-ui"></span>
+<span class="toggle-text muted">Se disattivo, registra subito la vendita</span>
+</label>
+</div>
+</div>
+</div>
+<div class="card">
+<div class="card-head">
+<h3>Scanner</h3>
+<div class="muted">Predisposto (safe)</div>
+</div>
+<div class="form-grid">
+<div class="field">
+<label class="label">Auto invio EAN</label>
+<label class="toggle">
+<input id="set_scanner_auto_submit_on_ean" type="checkbox"/>
+<span aria-hidden="true" class="toggle-ui"></span>
+<span class="toggle-text muted">Riduce attese dopo scansione</span>
+</label>
+</div>
+<div class="field">
+<label class="label">Suono / vibrazione</label>
+<div style="display:grid;gap:10px;">
+<label class="toggle">
+<input id="set_scanner_beep_on_success" type="checkbox"/>
+<span aria-hidden="true" class="toggle-ui"></span>
+<span class="toggle-text muted">Suono su scansione OK</span>
+</label>
+<label class="toggle">
+<input id="set_scanner_vibrate_on_error" type="checkbox"/>
+<span aria-hidden="true" class="toggle-ui"></span>
+<span class="toggle-text muted">Vibrazione su errore</span>
+</label>
+</div>
+</div>
+</div>
+</div>
 
-          <div class="section-head">
-            <h2 class="h2">Impostazioni</h2>
-            <div class="muted">Preferenze operatore (salvate nel DB)</div>
-          </div>
-
-          <div class="settings-grid">
-
-            <div class="card">
-              <div class="card-head">
-                <h3>Scadenze</h3>
-                <div class="muted">Alert e filtri</div>
-              </div>
-
-              <div class="form-grid">
-                <div class="field">
-                  <label class="label">Giorni alert</label>
-                  <input id="set_expiry_alert_days" type="number" class="input" min="1" max="365" step="1" />
-                  <div class="hint muted">Esempio: 30 → mostra lotti che scadono entro 30 giorni</div>
-                </div>
-
-                <div class="field">
-                  <label class="label">Includi stock zero</label>
-                  <label class="toggle">
-                    <input id="set_expiry_include_zero_stock" type="checkbox" />
-                    <span class="toggle-ui" aria-hidden="true"></span>
-                    <span class="toggle-text muted">Mostra anche lotti senza stock negli alert scadenze</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-head">
-                <h3>Stock</h3>
-                <div class="muted">Scorte minime</div>
-              </div>
-
-              <div class="form-grid">
-                <div class="field">
-                  <label class="label">Abilita alert scorte minime</label>
-                  <label class="toggle">
-                    <input id="set_low_stock_alert_enabled" type="checkbox" />
-                    <span class="toggle-ui" aria-hidden="true"></span>
-                    <span class="toggle-text muted">Evidenzia prodotti sotto soglia</span>
-                  </label>
-                </div>
-
-                <div class="field">
-                  <label class="label">Soglia unità</label>
-                  <input id="set_low_stock_threshold_units" type="number" class="input" min="0" max="100000" step="1" />
-                  <div class="hint muted">Sotto questo numero lo stock viene marcato come “basso”</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-head">
-                <h3>Vendita</h3>
-                <div class="muted">Default e conferme</div>
-              </div>
-
-              <div class="form-grid">
-                <div class="field">
-                  <label class="label">Default FEFO / manuale</label>
-                  <select id="set_sale_default_mode" class="input">
-                    <option value="FEFO">FEFO (auto)</option>
-                    <option value="MANUAL">Manuale</option>
-                  </select>
-                </div>
-
-                <div class="field">
-                  <label class="label">Conferma prima del commit</label>
-                  <label class="toggle">
-                    <input id="set_confirm_sale_before_commit" type="checkbox" />
-                    <span class="toggle-ui" aria-hidden="true"></span>
-                    <span class="toggle-text muted">Se disattivo, registra subito la vendita</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-head">
-                <h3>Scanner</h3>
-                <div class="muted">Predisposto (safe)</div>
-              </div>
-
-              <div class="form-grid">
-                <div class="field">
-                  <label class="label">Auto invio EAN</label>
-                  <label class="toggle">
-                    <input id="set_scanner_auto_submit_on_ean" type="checkbox" />
-                    <span class="toggle-ui" aria-hidden="true"></span>
-                    <span class="toggle-text muted">Riduce attese dopo scansione</span>
-                  </label>
-                </div>
-
-                <div class="field">
-                  <label class="label">Suono / vibrazione</label>
-                  <div style="display:grid;gap:10px;">
-                    <label class="toggle">
-                      <input id="set_scanner_beep_on_success" type="checkbox" />
-                      <span class="toggle-ui" aria-hidden="true"></span>
-                      <span class="toggle-text muted">Suono su scansione OK</span>
-                    </label>
-
-                    <label class="toggle">
-                      <input id="set_scanner_vibrate_on_error" type="checkbox" />
-                      <span class="toggle-ui" aria-hidden="true"></span>
-                      <span class="toggle-text muted">Vibrazione su errore</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <div class="card" style="margin-top:12px;">
-            <div class="card-head">
-              <h3>Salvataggio</h3>
-              <div class="muted">Le vecchie funzioni restano intatte</div>
-            </div>
-
-            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-              <button id="btn_save_settings" type="button" class="btn-primary">Salva impostazioni</button>
-              <div id="settings_message" class="muted"></div>
-            </div>
-          </div>
-
-        </section>
-
-        <!-- PRODOTTI -->
-        <section id="tab_products" class="tab">
-
-          <div class="section-head">
-            <h2 class="h2">Prodotti</h2>
-            <div class="muted">Crea e gestisci catalogo</div>
-          </div>
-
-          <div class="card product-create-card">
-            <div class="card-head">
-              <h3>➕ Nuovo Prodotto</h3>
-              <div class="muted">Compila e salva</div>
-            </div>
-
-            <div class="create-grid">
-              <input type="text" id="new_product_name" placeholder="Nome prodotto">
-              <input type="text" id="new_product_format" placeholder="Formato (es: 200g)">
-              <input type="text" id="new_product_fish" placeholder="Es: TONNO, SGOMBRO...">
-              <input type="text" id="new_product_ean" placeholder="EAN">
-              <input type="number" id="new_product_units" placeholder="Unità per vassoio" min="1">
-              <input type="file" id="new_product_image" accept="image/*">
-            </div>
-
-            <div class="row">
-              <button id="btn_add_product" class="btn-create" type="button">Crea Prodotto</button>
-              <div id="product_message" class="message"></div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head">
-              <h3>Prodotti esistenti</h3>
-              <div class="muted">Lista</div>
-            </div>
-            <div style="margin-bottom:12px;">
-              <label style="display:flex;align-items:center;gap:8px;">
-                <input type="checkbox" id="toggle_archived_products">
+<div class="card">
+<div class="card-head">
+<h3>Backup</h3>
+<div class="muted">Sicurezza dati</div>
+</div>
+<div class="form-grid">
+<div class="field">
+<label class="label">Ambiente</label>
+<select class="input" id="set_backup_environment">
+<option value="local">Locale</option>
+<option value="remote">Server remoto</option>
+</select>
+<div class="hint muted">Usato per gestire limiti e policy (i file restano sul server).</div>
+</div>
+<div class="field">
+<label class="label">Frequenza</label>
+<select class="input" id="set_backup_frequency">
+<option value="off">Disattivato</option>
+<option value="daily">Giornaliero</option>
+<option value="weekly">Settimanale</option>
+<option value="monthly">Mensile</option>
+</select>
+</div>
+<div class="field">
+<label class="label">Ora preferita</label>
+<input class="input" id="set_backup_time" type="time"/>
+<div class="hint muted">Se non hai cron, parte quando qualcuno apre il gestionale (best effort).</div>
+</div>
+<div class="field">
+<label class="label">Tieni ultimi N backup</label>
+<input class="input" id="set_backup_keep_last" max="365" min="1" step="1" type="number"/>
+</div>
+<div class="field">
+<label class="label">Elimina automaticamente i più vecchi</label>
+<label class="toggle">
+<input id="set_backup_auto_prune" type="checkbox"/>
+<span aria-hidden="true" class="toggle-ui"></span>
+<span class="toggle-text muted">Retention automatica</span>
+</label>
+</div>
+<div class="field">
+<label class="label">Includi uploads (immagini)</label>
+<label class="toggle">
+<input id="set_backup_include_uploads" type="checkbox"/>
+<span aria-hidden="true" class="toggle-ui"></span>
+<span class="toggle-text muted">Include cartella uploads</span>
+</label>
+</div>
+<div class="field">
+<label class="label">Azioni</label>
+<div class="backup-settings-actions">
+<button class="btn primary" id="btn_backup_run_now" type="button">Esegui backup ora</button>
+<button class="btn" id="btn_backup_manage" type="button">Gestisci backup</button>
+</div>
+<div class="hint muted" id="backup_run_message"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="card" style="margin-top:12px;">
+<div class="card-head">
+<h3>Salvataggio</h3>
+<div class="muted">Le vecchie funzioni restano intatte</div>
+</div>
+<div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+<button class="btn-primary" id="btn_save_settings" type="button">Salva impostazioni</button>
+<div class="muted" id="settings_message"></div>
+</div>
+</div>
+</section>
+<!-- PRODOTTI -->
+<section class="tab" id="tab_products">
+<div class="section-head">
+<h2 class="h2">Prodotti</h2>
+<div class="muted">Crea e gestisci catalogo</div>
+</div>
+<div class="card product-create-card">
+<div class="card-head">
+<h3>➕ Nuovo Prodotto</h3>
+<div class="muted">Compila e salva</div>
+</div>
+<div class="create-grid">
+<input id="new_product_name" placeholder="Nome prodotto" type="text"/>
+<input id="new_product_format" placeholder="Formato (es: 200g)" type="text"/>
+<input id="new_product_fish" placeholder="Es: TONNO, SGOMBRO..." type="text"/>
+<input id="new_product_ean" placeholder="EAN" type="text"/>
+<input id="new_product_units" min="1" placeholder="Unità per vassoio" type="number"/>
+<input accept="image/*" id="new_product_image" type="file"/>
+</div>
+<div class="row">
+<button class="btn-create" id="btn_add_product" type="button">Crea Prodotto</button>
+<div class="message" id="product_message"></div>
+</div>
+</div>
+<div class="card">
+<div class="card-head">
+<h3>Prodotti esistenti</h3>
+<div class="muted">Lista</div>
+</div>
+<div style="margin-bottom:12px;">
+<label style="display:flex;align-items:center;gap:8px;">
+<input id="toggle_archived_products" type="checkbox"/>
                 Mostra prodotti archiviati
               </label>
-            </div>
-            <div id="products_container" class="products-grid"></div>
-          </div>
-        </section>
-
-        <!-- PRODUZIONE -->
-        <section id="tab_production" class="tab">
-          <div class="section-head">
-            <h2 class="h2">Produzione</h2>
-            <div class="muted">Registra produzione e lotti</div>
-          </div>
-
-          <div class="split">
-            <div class="card">
-              <div class="card-head">
-                <h3>Nuova registrazione</h3>
-                <div class="muted">Scan → quantità → lotto → scadenza</div>
-              </div>
-
-              <div class="production-layout">
-
-                <!-- SCAN CENTRALE -->
-                <div class="scan-row">
-                  <label>Scansiona prodotto</label>
-                  <input type="text" id="prod_ean" placeholder="Scansiona EAN prodotto..." autofocus>
-                </div>
-
-                <!-- riga 1 -->
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label>Prodotto:</label>
-                    <select id="product_name_select"></select>
-                  </div>
-
-                  <div class="form-group">
-                    <label>Formato:</label>
-                    <select id="prod_select"></select>
-                    <small id="prod_info" class="help"></small>
-                  </div>
-                </div>
-
-                <!-- riga 2 -->
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label>Tipo quantità:</label>
-                    <select id="quantity_type">
-                      <option value="trays">Vassoi</option>
-                      <option value="units">Barattoli</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label>Quantità:</label>
-                    <input type="number" id="quantity_input" min="1">
-                  </div>
-                </div>
-
-                <!-- riga 3 -->
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label>Lotto:</label>
-                    <input type="text" id="lot_number" list="lot_suggestions">
-                    <div id="lot_warning"></div>
-                    <datalist id="lot_suggestions"></datalist>
-                    <div id="lot_quick" class="lot-quick"></div>
-                  </div>
-
-                  <div class="form-group">
-                    <label>Scadenza:</label>
-                    <input type="date" id="expiration_date">
-                  </div>
-                </div>
-
-              </div>
-
-              <div class="row">
-                <button id="btn_production" type="button" class="btn-primary">Registra Produzione</button>
-                <div id="prod_message" class="message"></div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-head">
-                <h3>Note rapide</h3>
-                <div class="muted">Pannello info</div>
-              </div>
-              <ul class="list">
-                <li>Scansiona EAN e controlla il formato.</li>
-                <li>Usa i suggerimenti lotto per velocizzare.</li>
-                <li>Se qualcosa non torna, annulla e rifai (meglio pulito).</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        <!-- VENDITA -->
-        <section id="tab_sale" class="tab">
-          <div class="section-head">
-            <h2 class="h2">Vendita</h2>
-            <div class="muted">Scarico rapido stock</div>
-          </div>
-
-          <div class="card">
-            <div class="form-grid">
-              <div class="form-group">
-                <label>Prodotto (nome):</label>
-                <select id="sale_product_name_select">
-                  <option value="">-- Seleziona prodotto --</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label>Formato:</label>
-                <select id="sale_prod_select">
-                  <option value="">-- Seleziona formato --</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-grid" style="margin-top:10px;">
-              <div class="form-group">
-                <label>EAN Prodotto (opzionale):</label>
-                <input type="text" id="barcode" placeholder="Scansiona o inserisci EAN">
-                <div class="muted">Se inserisci EAN, selezione prodotto/formato si aggiorna.</div>
-              </div>
-
-              <div class="form-group">
-                <label>Quantità (barattoli):</label>
-                <input type="number" id="sale_qty" value="1" min="1">
-              </div>
-            </div>
-
-            <div class="row" style="gap:12px; align-items:center; margin-top:10px;">
-              <label style="display:flex; gap:8px; align-items:center; cursor:pointer;">
-                <input type="checkbox" id="sale_manual_toggle">
-                <span>Selezione lotto manuale</span>
-              </label>
-              <span class="muted" id="sale_plan_hint"></span>
-            </div>
-
-            <!-- MANUALE -->
-            <div id="sale_manual_box" style="display:none; margin-top:10px;">
-              <div class="muted" style="margin-bottom:6px;">
+</div>
+<div class="products-grid" id="products_container"></div>
+</div>
+</section>
+<!-- PRODUZIONE -->
+<section class="tab" id="tab_production">
+<div class="section-head">
+<h2 class="h2">Produzione</h2>
+<div class="muted">Registra produzione e lotti</div>
+</div>
+<div class="split">
+<div class="card">
+<div class="card-head">
+<h3>Nuova registrazione</h3>
+<div class="muted">Scan → quantità → lotto → scadenza</div>
+</div>
+<div class="production-layout">
+<!-- SCAN CENTRALE -->
+<div class="scan-row">
+<label>Scansiona prodotto</label>
+<input autofocus="" id="prod_ean" placeholder="Scansiona EAN prodotto..." type="text"/>
+</div>
+<!-- riga 1 -->
+<div class="form-grid">
+<div class="form-group">
+<label>Prodotto:</label>
+<select id="product_name_select"></select>
+</div>
+<div class="form-group">
+<label>Formato:</label>
+<select id="prod_select"></select>
+<small class="help" id="prod_info"></small>
+</div>
+</div>
+<!-- riga 2 -->
+<div class="form-grid">
+<div class="form-group">
+<label>Tipo quantità:</label>
+<select id="quantity_type">
+<option value="trays">Vassoi</option>
+<option value="units">Barattoli</option>
+</select>
+</div>
+<div class="form-group">
+<label>Quantità:</label>
+<input id="quantity_input" min="1" type="number"/>
+</div>
+</div>
+<!-- riga 3 -->
+<div class="form-grid">
+<div class="form-group">
+<label>Lotto:</label>
+<input id="lot_number" list="lot_suggestions" type="text"/>
+<div id="lot_warning"></div>
+<datalist id="lot_suggestions"></datalist>
+<div class="lot-quick" id="lot_quick"></div>
+</div>
+<div class="form-group">
+<label>Scadenza:</label>
+<input id="expiration_date" type="date"/>
+</div>
+</div>
+</div>
+<div class="row">
+<button class="btn-primary" id="btn_production" type="button">Registra Produzione</button>
+<div class="message" id="prod_message"></div>
+</div>
+</div>
+<div class="card">
+<div class="card-head">
+<h3>Note rapide</h3>
+<div class="muted">Pannello info</div>
+</div>
+<ul class="list">
+<li>Scansiona EAN e controlla il formato.</li>
+<li>Usa i suggerimenti lotto per velocizzare.</li>
+<li>Se qualcosa non torna, annulla e rifai (meglio pulito).</li>
+</ul>
+</div>
+</div>
+</section>
+<!-- VENDITA -->
+<section class="tab" id="tab_sale">
+<div class="section-head">
+<h2 class="h2">Vendita</h2>
+<div class="muted">Scarico rapido stock</div>
+</div>
+<div class="card">
+<div class="form-grid">
+<div class="form-group">
+<label>Prodotto (nome):</label>
+<select id="sale_product_name_select">
+<option value="">-- Seleziona prodotto --</option>
+</select>
+</div>
+<div class="form-group">
+<label>Formato:</label>
+<select id="sale_prod_select">
+<option value="">-- Seleziona formato --</option>
+</select>
+</div>
+</div>
+<div class="form-grid" style="margin-top:10px;">
+<div class="form-group">
+<label>EAN Prodotto (opzionale):</label>
+<input id="barcode" placeholder="Scansiona o inserisci EAN" type="text"/>
+<div class="muted">Se inserisci EAN, selezione prodotto/formato si aggiorna.</div>
+</div>
+<div class="form-group">
+<label>Quantità (barattoli):</label>
+<input id="sale_qty" min="1" type="number" value="1"/>
+</div>
+</div>
+<div class="row" style="gap:12px; align-items:center; margin-top:10px;">
+<label style="display:flex; gap:8px; align-items:center; cursor:pointer;">
+<input id="sale_manual_toggle" type="checkbox"/>
+<span>Selezione lotto manuale</span>
+</label>
+<span class="muted" id="sale_plan_hint"></span>
+</div>
+<!-- MANUALE -->
+<div id="sale_manual_box" style="display:none; margin-top:10px;">
+<div class="muted" style="margin-bottom:6px;">
                 Seleziona uno o più lotti. Completa la quantità richiesta.
               </div>
-
-              <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-                <div class="muted">Lotti disponibili:</div>
-                <div id="sale_lot_chips" class="row" style="gap:8px; flex-wrap:wrap;"></div>
-              </div>
-
-              <div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-                <div class="muted">Selezionati:</div>
-                <div id="sale_selected_chips" class="row" style="gap:8px; flex-wrap:wrap;"></div>
-              </div>
-
-              <div id="sale_manual_status" class="muted"></div>
-            </div>
-
-            <div class="row" style="margin-top:10px;">
-              <button id="btn_sale" type="button" class="btn-primary">Registra Vendita</button>
-              <div id="sale_message" class="message"></div>
-            </div>
-
-            <!-- BOX conferma 2-step -->
-            <div id="sale_confirm_box" style="margin-top:12px;"></div>
-          </div>
-        </section>
-
-        <!-- RETTIFICA STOCK -->
-        <section id="tab_adjust" class="tab">
-          <div class="section-head">
-            <h2 class="h2">Rettifica Stock</h2>
-            <div class="muted">Rottura, reso, inventario, modifica forzata… (tracciato)</div>
-          </div>
-
-          <div class="card">
-            <div class="form-grid">
-              <div class="form-group" style="grid-column: 1 / -1;">
-                <label>Lotto:</label>
-                <select id="adjust_lot" class="input">
-                  <option value="">Seleziona lotto…</option>
-                </select>
-                <div class="muted" style="margin-top:6px;">
+<div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+<div class="muted">Lotti disponibili:</div>
+<div class="row" id="sale_lot_chips" style="gap:8px; flex-wrap:wrap;"></div>
+</div>
+<div class="row" style="gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+<div class="muted">Selezionati:</div>
+<div class="row" id="sale_selected_chips" style="gap:8px; flex-wrap:wrap;"></div>
+</div>
+<div class="muted" id="sale_manual_status"></div>
+</div>
+<div class="row" style="margin-top:10px;">
+<button class="btn-primary" id="btn_sale" type="button">Registra Vendita</button>
+<div class="message" id="sale_message"></div>
+</div>
+<!-- BOX conferma 2-step -->
+<div id="sale_confirm_box" style="margin-top:12px;"></div>
+</div>
+</section>
+<!-- RETTIFICA STOCK -->
+<section class="tab" id="tab_adjust">
+<div class="section-head">
+<h2 class="h2">Rettifica Stock</h2>
+<div class="muted">Rottura, reso, inventario, modifica forzata… (tracciato)</div>
+</div>
+<div class="card">
+<div class="form-grid">
+<div class="form-group" style="grid-column: 1 / -1;">
+<label>Lotto:</label>
+<select class="input" id="adjust_lot">
+<option value="">Seleziona lotto…</option>
+</select>
+<div class="muted" style="margin-top:6px;">
                   Stock attuale lotto:
                   <span class="pill" id="adjust_stock_badge">0</span>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>Direzione:</label>
-                <div class="row" style="gap:12px; align-items:center;">
-                  <label style="display:flex; gap:8px; align-items:center;">
-                    <input type="radio" name="adjust_dir" id="adjust_dir_in" checked>
-                    <span>Entrata (+)</span>
-                  </label>
-                  <label style="display:flex; gap:8px; align-items:center;">
-                    <input type="radio" name="adjust_dir" id="adjust_dir_out">
-                    <span>Uscita (−)</span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label>Quantità (barattoli):</label>
-                <input id="adjust_qty" class="input" type="number" min="1">
-              </div>
-
-              <div class="form-group">
-                <label>Motivo:</label>
-                <select id="adjust_reason" class="input">
-                  <option value="">-- Seleziona --</option>
-                  <option value="ROTTURA">Rottura</option>
-                  <option value="RESO">Reso</option>
-                  <option value="MODIFICA_FORZATA">Modifica forzata</option>
-                  <option value="INVENTARIO">Inventario</option>
-                  <option value="ALTRO">Altro</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label>Nota (opzionale):</label>
-                <input id="adjust_note" class="input" type="text">
-              </div>
-            </div>
-
-            <div class="row" style="margin-top:12px;">
-              <button id="btn_adjust_commit" type="button" class="btn-primary">
+</div>
+</div>
+<div class="form-group">
+<label>Direzione:</label>
+<div class="row" style="gap:12px; align-items:center;">
+<label style="display:flex; gap:8px; align-items:center;">
+<input checked="" id="adjust_dir_in" name="adjust_dir" type="radio"/>
+<span>Entrata (+)</span>
+</label>
+<label style="display:flex; gap:8px; align-items:center;">
+<input id="adjust_dir_out" name="adjust_dir" type="radio"/>
+<span>Uscita (−)</span>
+</label>
+</div>
+</div>
+<div class="form-group">
+<label>Quantità (barattoli):</label>
+<input class="input" id="adjust_qty" min="1" type="number"/>
+</div>
+<div class="form-group">
+<label>Motivo:</label>
+<select class="input" id="adjust_reason">
+<option value="">-- Seleziona --</option>
+<option value="ROTTURA">Rottura</option>
+<option value="RESO">Reso</option>
+<option value="MODIFICA_FORZATA">Modifica forzata</option>
+<option value="INVENTARIO">Inventario</option>
+<option value="ALTRO">Altro</option>
+</select>
+</div>
+<div class="form-group">
+<label>Nota (opzionale):</label>
+<input class="input" id="adjust_note" type="text"/>
+</div>
+</div>
+<div class="row" style="margin-top:12px;">
+<button class="btn-primary" id="btn_adjust_commit" type="button">
                 Registra Rettifica
               </button>
-              <div id="adjust_message" class="message"></div>
-            </div>
-          </div>
+<div class="message" id="adjust_message"></div>
+</div>
+</div>
+<div class="card" style="margin-top:14px;">
+<div class="card-head">
+<h3>Ultime rettifiche</h3>
+<div class="muted">Max 30</div>
+</div>
+<div class="table-wrap">
+<table id="adjust_table">
+<thead>
+<tr>
+<th>Data</th>
+<th>Prodotto</th>
+<th>Lotto</th>
+<th>Scadenza</th>
+<th>Qty</th>
+<th>Motivo</th>
+</tr>
+</thead>
+<tbody id="adjust_table_body">
+<tr>
+<td class="muted" colspan="6">Caricamento...</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- STOCK -->
+<section class="tab" id="tab_stock">
+<div class="section-head">
+<h2 class="h2">Stock Totale</h2>
+<div class="muted">Vista per prodotto</div>
+</div>
+<div class="card">
+<div class="table-wrap">
+<table id="stock_table">
+<thead>
+<tr>
+<th>Tipo Pesce</th>
+<th>Prodotto</th>
+<th>Formato</th>
+<th>EAN</th>
+<th>Stock (barattoli)</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- LOTTI -->
+<section class="tab" id="tab_lots">
+<div class="section-head">
+<h2 class="h2">Lotti Dettagliati</h2>
+<div class="muted">Vista completa</div>
+</div>
+<div class="card">
+<div class="table-wrap">
+<table id="lots_table">
+<thead>
+<tr>
+<th>Pesce</th>
+<th>Prodotto</th>
+<th>Formato</th>
+<th>EAN</th>
+<th>Lotto</th>
+<th>Stock</th>
+<th>Produzione</th>
+<th>Scadenza</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- MAGAZZINO -->
+<section class="tab" id="tab_inventory">
+<h2>Magazzino</h2>
+<p class="muted">Vista operativa: stock, lotti, scadenze e “cose da fare”.</p>
+<div class="inv-kpis">
+<div class="card"><div class="label">Stock totale</div><div class="value" id="inv_kpi_total_stock">—</div></div>
+<div class="card"><div class="label">Lotti in scadenza ≤ 7gg</div><div class="value" id="inv_kpi_exp7">—</div></div>
+<div class="card"><div class="label">Lotti in scadenza ≤ 30gg</div><div class="value" id="inv_kpi_exp30">—</div></div>
+</div>
+<div class="inv-controls">
+<div class="inv-toggle">
+<button class="chip active" id="inv_view_products" type="button">Per prodotto</button>
+<button class="chip" id="inv_view_lots" type="button">Per lotti</button>
+</div>
+</div>
+<div class="inv-grid">
+<div class="card">
+<h3>📌 Cose da fare</h3>
+<div class="muted" id="inv_todo">Caricamento...</div>
+</div>
+<div class="card">
+<h3>⏳ Finirà presto</h3>
+<div class="muted" id="inv_runout">Caricamento...</div>
+</div>
+</div>
+<!-- Filtri (sotto “Cose da fare / Finirà presto”) -->
+<div aria-label="Filtri Magazzino" class="inv-filterbar" id="inv_filterbar">
+<div class="inv-filter-top">
+<div class="inv-search">
+<span class="inv-search-icon">🔎</span>
+<input autocomplete="off" id="inv_search" placeholder="Cerca…" type="text">
+<button aria-label="Svuota" class="inv-search-clear" id="inv_search_clear" title="Svuota" type="button">✖</button>
+</input></div>
+<div class="inv-filter-row">
+<select aria-label="Tipo pesce" id="inv_fish_type">
+<option value="">Tutti</option>
+</select>
+<select aria-label="Ordina" id="inv_sort"></select>
+</div>
+</div>
+<div class="inv-filter-bottom">
+<div class="inv-chips" id="inv_chips">
+<button class="chip" data-inv-chip="expiring" type="button">Scadenze</button>
+<button class="chip" data-inv-chip="lowStock" type="button">Stock basso</button>
+<button class="chip" data-inv-chip="zeroStock" type="button">Stock 0</button>
+<button class="chip" data-inv-chip="onlyActive" type="button">Solo attivi</button>
+<button class="chip" data-inv-chip="onlyFefo" type="button">Solo FEFO</button>
+<button class="chip chip-reset" data-inv-chip="reset" type="button">Reset</button>
+</div>
+</div>
+</div>
+<div class="card">
+<div class="card-head" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+<div>
+<h3 id="inv_table_title">Vista per prodotto</h3>
+<div class="muted">Magazzino • 5 per pagina</div>
+</div>
+<div class="row" style="gap:8px; align-items:center;">
+<span class="muted" id="inv_table_count">0</span>
+<button class="btn-secondary" id="inv_table_prev" style="padding:6px 10px; border-radius:10px;" type="button">←</button>
+<span class="pill" id="inv_table_page" style="padding:6px 10px;">1/1</span>
+<button class="btn-secondary" id="inv_table_next" style="padding:6px 10px; border-radius:10px;" type="button">→</button>
+</div>
+</div>
+<div class="table-wrap desktop-only">
+<table class="table" id="inv_table">
+<thead id="inv_thead"></thead>
+<tbody id="inv_tbody"></tbody>
+</table>
+</div>
+<div aria-label="Lista magazzino mobile" class="mobile-only mobile-cards" id="inv_mobile_cards"></div>
+</div>
+<!-- MOVIMENTI (tutti) - stessa UI della Home + paginazione 10 -->
+<div class="card">
+<div class="card-head" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+<div>
+<h3>🧾 Movimenti</h3>
+<div class="muted">Tutti i movimenti • 10 per pagina</div>
+</div>
+<div class="row" style="gap:8px; align-items:center;">
+<span class="muted" id="inv_moves_count">0</span>
+<button class="btn-secondary" id="inv_moves_prev" style="padding:6px 10px; border-radius:10px;" type="button">←</button>
+<span class="pill" id="inv_moves_page" style="padding:6px 10px;">1/1</span>
+<button class="btn-secondary" id="inv_moves_next" style="padding:6px 10px; border-radius:10px;" type="button">→</button>
+</div>
+</div>
+<div class="table-wrap desktop-only">
+<table class="table">
+<thead>
+<tr>
+<th>Data</th>
+<th>Tipo</th>
+<th>Prodotto</th>
+<th>Lotto</th>
+<th>Scad.</th>
+<th>Q.tà</th>
+</tr>
+</thead>
+<tbody id="inv_all_moves_table"></tbody>
+</table>
+</div>
+<div aria-label="Lista movimenti mobile" class="mobile-only mobile-cards" id="inv_moves_mobile_cards"></div>
+</div>
+</section>
+</div>
 
-          <div class="card" style="margin-top:14px;">
-            <div class="card-head">
-              <h3>Ultime rettifiche</h3>
-              <div class="muted">Max 30</div>
-            </div>
-
-            <div class="table-wrap">
-              <table id="adjust_table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Prodotto</th>
-                    <th>Lotto</th>
-                    <th>Scadenza</th>
-                    <th>Qty</th>
-                    <th>Motivo</th>
-                  </tr>
-                </thead>
-                <tbody id="adjust_table_body">
-                  <tr>
-                    <td colspan="6" class="muted">Caricamento...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- STOCK -->
-        <section id="tab_stock" class="tab">
-          <div class="section-head">
-            <h2 class="h2">Stock Totale</h2>
-            <div class="muted">Vista per prodotto</div>
-          </div>
-
-          <div class="card">
-            <div class="table-wrap">
-              <table id="stock_table">
-                <thead>
-                  <tr>
-                    <th>Tipo Pesce</th>
-                    <th>Prodotto</th>
-                    <th>Formato</th>
-                    <th>EAN</th>
-                    <th>Stock (barattoli)</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- LOTTI -->
-        <section id="tab_lots" class="tab">
-          <div class="section-head">
-            <h2 class="h2">Lotti Dettagliati</h2>
-            <div class="muted">Vista completa</div>
-          </div>
-
-          <div class="card">
-            <div class="table-wrap">
-              <table id="lots_table">
-                <thead>
-                  <tr>
-                    <th>Pesce</th>
-                    <th>Prodotto</th>
-                    <th>Formato</th>
-                    <th>EAN</th>
-                    <th>Lotto</th>
-                    <th>Stock</th>
-                    <th>Produzione</th>
-                    <th>Scadenza</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- MAGAZZINO -->
-        <section id="tab_inventory" class="tab">
-          <h2>Magazzino</h2>
-          <p class="muted">Vista operativa: stock, lotti, scadenze e “cose da fare”.</p>
-
-          <div class="inv-kpis">
-            <div class="card"><div class="label">Stock totale</div><div id="inv_kpi_total_stock" class="value">—</div></div>
-            <div class="card"><div class="label">Lotti in scadenza ≤ 7gg</div><div id="inv_kpi_exp7" class="value">—</div></div>
-            <div class="card"><div class="label">Lotti in scadenza ≤ 30gg</div><div id="inv_kpi_exp30" class="value">—</div></div>
-          </div>
-
-          <div class="inv-controls">
-            <div class="inv-toggle">
-              <button id="inv_view_products" class="chip active" type="button">Per prodotto</button>
-              <button id="inv_view_lots" class="chip" type="button">Per lotti</button>
-            </div>
-          </div>
-
-          <div class="inv-grid">
-            <div class="card">
-              <h3>📌 Cose da fare</h3>
-              <div id="inv_todo" class="muted">Caricamento...</div>
-            </div>
-
-            <div class="card">
-              <h3>⏳ Finirà presto</h3>
-              <div id="inv_runout" class="muted">Caricamento...</div>
-            </div>
-          </div>
-
-          <!-- Filtri (sotto “Cose da fare / Finirà presto”) -->
-          <div id="inv_filterbar" class="inv-filterbar" aria-label="Filtri Magazzino">
-            <div class="inv-filter-top">
-              <div class="inv-search">
-                <span class="inv-search-icon">🔎</span>
-                <input id="inv_search" type="text" placeholder="Cerca…" autocomplete="off" />
-                <button id="inv_search_clear" class="inv-search-clear" type="button" title="Svuota" aria-label="Svuota">✖</button>
-              </div>
-
-              <div class="inv-filter-row">
-                <select id="inv_fish_type" aria-label="Tipo pesce">
-                  <option value="">Tutti</option>
-                </select>
-
-                <select id="inv_sort" aria-label="Ordina"></select>
-              </div>
-            </div>
-
-            <div class="inv-filter-bottom">
-              <div class="inv-chips" id="inv_chips">
-                <button type="button" class="chip" data-inv-chip="expiring">Scadenze</button>
-                <button type="button" class="chip" data-inv-chip="lowStock">Stock basso</button>
-                <button type="button" class="chip" data-inv-chip="zeroStock">Stock 0</button>
-                <button type="button" class="chip" data-inv-chip="onlyActive">Solo attivi</button>
-                <button type="button" class="chip" data-inv-chip="onlyFefo">Solo FEFO</button>
-                <button type="button" class="chip chip-reset" data-inv-chip="reset">Reset</button>
-              </div>
-
-
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
-              <div>
-                <h3 id="inv_table_title">Vista per prodotto</h3>
-                <div class="muted">Magazzino • 5 per pagina</div>
-              </div>
-
-              <div class="row" style="gap:8px; align-items:center;">
-                <span class="muted" id="inv_table_count">0</span>
-                <button id="inv_table_prev" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">←</button>
-                <span id="inv_table_page" class="pill" style="padding:6px 10px;">1/1</span>
-                <button id="inv_table_next" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">→</button>
-              </div>
-            </div>
-            <div class="table-wrap desktop-only">
-              <table id="inv_table" class="table">
-                <thead id="inv_thead"></thead>
-                <tbody id="inv_tbody"></tbody>
-              </table>
-            </div>
-            <div id="inv_mobile_cards" class="mobile-only mobile-cards" aria-label="Lista magazzino mobile"></div>
-          </div>
-
-          <!-- MOVIMENTI (tutti) - stessa UI della Home + paginazione 10 -->
-          <div class="card">
-            <div class="card-head" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
-              <div>
-                <h3>🧾 Movimenti</h3>
-                <div class="muted">Tutti i movimenti • 10 per pagina</div>
-              </div>
-
-              <div class="row" style="gap:8px; align-items:center;">
-                <span class="muted" id="inv_moves_count">0</span>
-                <button id="inv_moves_prev" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">←</button>
-                <span id="inv_moves_page" class="pill" style="padding:6px 10px;">1/1</span>
-                <button id="inv_moves_next" type="button" class="btn-secondary" style="padding:6px 10px; border-radius:10px;">→</button>
-              </div>
-            </div>
-
-            <div class="table-wrap desktop-only">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Tipo</th>
-                    <th>Prodotto</th>
-                    <th>Lotto</th>
-                    <th>Scad.</th>
-                    <th>Q.tà</th>
-                  </tr>
-                </thead>
-                <tbody id="inv_all_moves_table"></tbody>
-              </table>
-            </div>
-            <div id="inv_moves_mobile_cards" class="mobile-only mobile-cards" aria-label="Lista movimenti mobile"></div>
-          </div>
-        </section>
-
-      </div>
-    </main>
-  </div>
-
-  <script src="dashboard.js"></script>
-  <script src="analytics/analytics_tab.js"></script>
-  <script>
+<section class="tab" id="tab_backup_manager">
+<div class="section-head">
+<h2 class="h2">Gestione backup</h2>
+<div class="muted">Lista backup e download</div>
+</div>
+<div class="card">
+<div class="card-head">
+<h3>Azioni</h3>
+<div class="muted">Crea, scarica, elimina</div>
+</div>
+<div class="backup-actions">
+<button class="btn primary" id="btn_backup_create_now" type="button">Crea backup adesso</button>
+<button class="btn" id="btn_backup_refresh" type="button">Aggiorna lista</button>
+<button class="btn" id="btn_backup_back_to_settings" type="button">Torna alle impostazioni</button>
+<div class="muted" id="backup_manager_message"></div>
+</div>
+</div>
+<div class="card">
+<div class="card-head">
+<h3>Backup disponibili</h3>
+<div class="muted">I file sono salvati sul server</div>
+</div>
+<div class="table-wrap">
+<table class="table" id="backup_table">
+<thead>
+<tr>
+<th>Data</th>
+<th>Tipo</th>
+<th>Dimensione</th>
+<th>Include</th>
+<th>Azioni</th>
+</tr>
+</thead>
+<tbody id="backup_table_body">
+<tr><td class="muted" colspan="5">Nessun backup</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+</main>
+</div>
+<script src="dashboard.js"></script>
+<script src="analytics/analytics_tab.js"></script>
+<script>
     window.addEventListener("DOMContentLoaded", () => {
       const sidebar = document.querySelector(".sidebar");
       const btn = document.getElementById("menu_toggle");
@@ -987,17 +964,16 @@
       setIcon();
     });
   </script>
-
-  <div id="qa_modal" class="qa-modal hidden">
-    <div class="qa-card">
-      <div class="qa-head">
-        <div id="qa_title" class="qa-title">Azione rapida</div>
-        <button id="qa_close" class="qa-x" type="button">✕</button>
-      </div>
-      <div id="qa_body"></div>
-      <div id="qa_msg" class="muted" style="margin-top:10px;"></div>
-    </div>
-  </div>
-  <button id="backToTop" class="back-to-top" type="button" aria-label="Torna su">⬆️</button>
-</body>
+<div class="qa-modal hidden" id="qa_modal">
+<div class="qa-card">
+<div class="qa-head">
+<div class="qa-title" id="qa_title">Azione rapida</div>
+<button class="qa-x" id="qa_close" type="button">✕</button>
+</div>
+<div id="qa_body"></div>
+<div class="muted" id="qa_msg" style="margin-top:10px;"></div>
+</div>
+</div>
+<button aria-label="Torna su" class="back-to-top" id="backToTop" type="button">⬆️</button>
+<script src="backup/backup_manager.js"></script></body>
 </html>

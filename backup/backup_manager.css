@@ -1,0 +1,40 @@
+
+/* Scoped styles for Backup manager + settings block */
+#tab_backup_manager .backup-actions,
+#tab_settings .backup-settings-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+}
+
+#tab_backup_manager .backup-actions .muted{
+  margin-left:auto;
+}
+
+#tab_backup_manager .table-wrap{
+  overflow:auto;
+}
+
+#tab_backup_manager td .btn{
+  padding:6px 10px;
+  font-size:12px;
+}
+
+#tab_backup_manager .btn + .btn{
+  margin-left:8px;
+}
+
+@media (max-width: 640px){
+  #tab_backup_manager .backup-actions .muted{
+    margin-left:0;
+    width:100%;
+  }
+  #tab_settings .backup-settings-actions{
+    width:100%;
+  }
+  #tab_settings .backup-settings-actions .btn{
+    flex:1;
+    min-width:140px;
+  }
+}

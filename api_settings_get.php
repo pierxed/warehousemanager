@@ -18,6 +18,16 @@ function default_settings(): array {
     'scanner_auto_submit_on_ean' => false,
     'scanner_beep_on_success' => false,
     'scanner_vibrate_on_error' => false,
+
+
+    'backup_enabled' => true,
+    'backup_environment' => 'local', // local | remote
+    'backup_frequency' => 'off',     // off | daily | weekly | monthly
+    'backup_time' => '02:00',        // HH:MM
+    'backup_keep_last' => 14,
+    'backup_auto_prune' => true,
+    'backup_include_uploads' => true,
+
   ];
 }
 

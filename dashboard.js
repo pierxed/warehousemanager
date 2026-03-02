@@ -22,6 +22,14 @@ const DEFAULT_SETTINGS = {
   scanner_auto_submit_on_ean: false,
   scanner_beep_on_success: false,
   scanner_vibrate_on_error: false,
+
+  backup_enabled: true,
+  backup_environment: 'local',
+  backup_frequency: 'off',
+  backup_time: '02:00',
+  backup_keep_last: 14,
+  backup_auto_prune: true,
+  backup_include_uploads: true,
 };
 
 let SETTINGS = { ...DEFAULT_SETTINGS };
@@ -121,6 +129,15 @@ function fillSettingsForm(){
   setChk('set_scanner_auto_submit_on_ean', v.scanner_auto_submit_on_ean);
   setChk('set_scanner_beep_on_success', v.scanner_beep_on_success);
   setChk('set_scanner_vibrate_on_error', v.scanner_vibrate_on_error);
+
+  const env = document.getElementById('set_backup_environment');
+  if(env) env.value = v.backup_environment;
+  const freq = document.getElementById('set_backup_frequency');
+  if(freq) freq.value = v.backup_frequency;
+  setVal('set_backup_time', v.backup_time);
+  setVal('set_backup_keep_last', v.backup_keep_last);
+  setChk('set_backup_auto_prune', v.backup_auto_prune);
+  setChk('set_backup_include_uploads', v.backup_include_uploads);
 }
 
 function collectSettingsFromForm(){
@@ -144,6 +161,14 @@ function collectSettingsFromForm(){
     scanner_auto_submit_on_ean: getChk('set_scanner_auto_submit_on_ean'),
     scanner_beep_on_success: getChk('set_scanner_beep_on_success'),
     scanner_vibrate_on_error: getChk('set_scanner_vibrate_on_error'),
+
+    backup_enabled: true,
+    backup_environment: String(getVal('set_backup_environment') || 'local') === 'remote' ? 'remote' : 'local',
+    backup_frequency: ['off','daily','weekly','monthly'].includes(String(getVal('set_backup_frequency') || 'off')) ? String(getVal('set_backup_frequency') || 'off') : 'off',
+    backup_time: String(getVal('set_backup_time') || DEFAULT_SETTINGS.backup_time),
+    backup_keep_last: Math.max(1, Math.min(365, parseInt(getVal('set_backup_keep_last'), 10) || DEFAULT_SETTINGS.backup_keep_last)),
+    backup_auto_prune: getChk('set_backup_auto_prune'),
+    backup_include_uploads: getChk('set_backup_include_uploads'),
   };
 }
 
@@ -2266,6 +2291,8 @@ if(lastTabId){
 
   // settings prima di inizializzare le UI che dipendono da default (vendita/scadenze)
   await loadSettings();
+  // pseudo-cron backup (best effort)
+  fetch('backup/api/run_scheduled.php').catch(()=>{});
 
   await loadProducts();
   SaleUI.init();
