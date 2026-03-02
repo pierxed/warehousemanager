@@ -1298,3 +1298,17 @@ table.mobile-cards{
   outline:none;
   box-shadow: 0 0 0 2px rgba(59,130,246,.25);
 }
+
+/* FIX header trasparente su tablet: deve coprire il contenuto sotto */
+.sidebar{
+  position: sticky; /* se già sticky ok */
+  top: 0;
+  z-index: 9999;
+  background: #fff;              /* OPACO */
+  background-color: #fff;        /* ridondante ma salva la vita */
+}
+
+/* Se l'header ha border/shadow nel tuo stile */
+.sidebar{
+  box-shadow: 0 2px 10px rgba(15,23,42,.06);
+}
