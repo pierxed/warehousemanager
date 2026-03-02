@@ -17,7 +17,7 @@ function backup_defaults(): array {
 function load_settings(PDO $pdo): array {
   $defaults = backup_defaults();
   try {
-    $stmt = $pdo->query("SELECT settings_json FROM settings ORDER BY id ASC LIMIT 1");
+    $stmt = $pdo->query("SELECT settings_json FROM settings ORDER BY id DESC LIMIT 1");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if(!$row || empty($row['settings_json'])) return $defaults;
     $decoded = json_decode($row['settings_json'], true);

@@ -41,7 +41,7 @@ try {
   // prova a leggere la prima riga
   $row = null;
   try {
-    $stmt = $pdo->query("SELECT id, settings_json, updated_at FROM settings ORDER BY id ASC LIMIT 1");
+    $stmt = $pdo->query("SELECT id, settings_json, updated_at FROM settings ORDER BY id DESC LIMIT 1");
     $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
   } catch (Throwable $e) {
     // tabella mancante o errore SQL: fallback ai defaults

@@ -41,8 +41,20 @@ function to_bool($v): bool {
 }
 
 try {
-  $input = read_json_body();
-  $in = $input['settings'] ?? $input;
+$input = read_json_body();
+
+// fallback: se non arriva JSON (es. FormData / POST classico)
+if (!is_array($input) || count($input) === 0) {
+  $input = $_POST ?? [];
+}
+
+// supporta sia {settings:{...}} sia settings="...json..."
+$in = $input['settings'] ?? $input;
+
+if (is_string($in)) {
+  $decoded = json_decode($in, true);
+  if (is_array($decoded)) $in = $decoded;
+}
   if (!is_array($in)) error_response('Payload non valido', 400);
 
   $defaults = default_settings();
@@ -99,6 +111,47 @@ try {
   }
   if (array_key_exists('scanner_vibrate_on_error', $in)) {
     $out['scanner_vibrate_on_error'] = to_bool($in['scanner_vibrate_on_error']);
+  }
+
+    // --- Backup settings ---
+  if (array_key_exists('backup_enabled', $in)) {
+    $out['backup_enabled'] = to_bool($in['backup_enabled']);
+  }
+
+  if (array_key_exists('backup_environment', $in)) {
+    $env = strtolower(trim((string)$in['backup_environment']));
+    $out['backup_environment'] = ($env === 'remote') ? 'remote' : 'local';
+  }
+
+  if (array_key_exists('backup_frequency', $in)) {
+    $freq = strtolower(trim((string)$in['backup_frequency']));
+    $out['backup_frequency'] = in_array($freq, ['off','daily','weekly','monthly'], true) ? $freq : 'off';
+  }
+
+  if (array_key_exists('backup_time', $in)) {
+    $t = trim((string)$in['backup_time']);
+    // valida HH:MM
+    if (preg_match('/^(\d{2}):(\d{2})$/', $t, $m)) {
+      $hh = (int)$m[1]; $mm = (int)$m[2];
+      if ($hh < 0) $hh = 0; if ($hh > 23) $hh = 23;
+      if ($mm < 0) $mm = 0; if ($mm > 59) $mm = 59;
+      $out['backup_time'] = sprintf('%02d:%02d', $hh, $mm);
+    }
+  }
+
+  if (array_key_exists('backup_keep_last', $in)) {
+    $k = (int)$in['backup_keep_last'];
+    if ($k < 1) $k = 1;
+    if ($k > 365) $k = 365;
+    $out['backup_keep_last'] = $k;
+  }
+
+  if (array_key_exists('backup_auto_prune', $in)) {
+    $out['backup_auto_prune'] = to_bool($in['backup_auto_prune']);
+  }
+
+  if (array_key_exists('backup_include_uploads', $in)) {
+    $out['backup_include_uploads'] = to_bool($in['backup_include_uploads']);
   }
 
   // Ensure table exists? If not, throw clean error.

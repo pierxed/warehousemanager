@@ -87,6 +87,32 @@ function normalizeSettings(raw){
   if(raw.scanner_beep_on_success != null) out.scanner_beep_on_success = coerceBool(raw.scanner_beep_on_success);
   if(raw.scanner_vibrate_on_error != null) out.scanner_vibrate_on_error = coerceBool(raw.scanner_vibrate_on_error);
 
+    // --- Backup settings (v0.2) ---
+  if (raw.backup_enabled != null) out.backup_enabled = coerceBool(raw.backup_enabled);
+
+  if (raw.backup_environment != null) {
+    const env = String(raw.backup_environment).trim().toLowerCase();
+    out.backup_environment = (env === 'remote') ? 'remote' : 'local';
+  }
+
+  if (raw.backup_frequency != null) {
+    const f = String(raw.backup_frequency).trim().toLowerCase();
+    out.backup_frequency = ['off','daily','weekly','monthly'].includes(f) ? f : 'off';
+  }
+
+  if (raw.backup_time != null) {
+    const t = String(raw.backup_time).trim();
+    // HH:MM
+    out.backup_time = /^\d{2}:\d{2}$/.test(t) ? t : DEFAULT_SETTINGS.backup_time;
+  }
+
+  if (raw.backup_keep_last != null) {
+    const k = parseInt(raw.backup_keep_last, 10);
+    out.backup_keep_last = Math.max(1, Math.min(365, isNaN(k) ? DEFAULT_SETTINGS.backup_keep_last : k));
+  }
+
+  if (raw.backup_auto_prune != null) out.backup_auto_prune = coerceBool(raw.backup_auto_prune);
+  if (raw.backup_include_uploads != null) out.backup_include_uploads = coerceBool(raw.backup_include_uploads);
   return out;
 }
 
