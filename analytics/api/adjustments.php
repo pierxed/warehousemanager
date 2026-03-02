@@ -42,7 +42,7 @@ try {
   }
 
   $qtyAbsExpr = ($unit === 'trays')
-    ? "ABS(m.quantity / NULLIF(p.units_per_tray, 0))"
+    ? "ABS(FLOOR(m.quantity / NULLIF(p.units_per_tray, 0)))"
     : "ABS(m.quantity)";
 
   $sqlReasons = "

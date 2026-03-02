@@ -39,8 +39,8 @@ try {
     $params[':pid'] = $product_id;
   }
 
-  $qtyExpr = ($unit === 'trays')
-    ? "(m.quantity / NULLIF(p.units_per_tray, 0))"
+$qtyExpr = ($unit === 'trays')
+    ? "FLOOR(m.quantity / NULLIF(p.units_per_tray, 0))"
     : "m.quantity";
 
   $sql = "

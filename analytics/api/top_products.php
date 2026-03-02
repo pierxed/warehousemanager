@@ -35,8 +35,8 @@ try {
     $params[':fish'] = $fish;
   }
 
-  $qtyExpr = ($unit === 'trays')
-    ? "(m.quantity / NULLIF(p.units_per_tray, 0))"
+$qtyExpr = ($unit === 'trays')
+    ? "FLOOR(m.quantity / NULLIF(p.units_per_tray, 0))"
     : "m.quantity";
 
   $sql = "
