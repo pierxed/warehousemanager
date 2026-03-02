@@ -10,7 +10,9 @@ let WM_FEFO_BY_PRODUCT = new Map();
 // - safe defaults: se API/tabella manca, l'app continua a funzionare.
 // ==========================
 const DEFAULT_SETTINGS = {
-  expiry_alert_days: 30,
+  // Scadenze
+  expiry_alert_critical_days: 7,
+  expiry_alert_general_days: 30,
   expiry_include_zero_stock: false,
 
   low_stock_alert_enabled: true,
@@ -34,6 +36,13 @@ const DEFAULT_SETTINGS = {
 
 let SETTINGS = { ...DEFAULT_SETTINGS };
 
+function getExpiryThresholds(){
+  const g = Math.max(1, Number(SETTINGS?.expiry_alert_general_days ?? DEFAULT_SETTINGS.expiry_alert_general_days));
+  const cRaw = Number(SETTINGS?.expiry_alert_critical_days ?? DEFAULT_SETTINGS.expiry_alert_critical_days);
+  const c = Math.max(0, Math.min(g, cRaw));
+  return { critical: c, general: g };
+}
+
 function coerceBool(v){
   if(typeof v === 'boolean') return v;
   if(typeof v === 'number') return v !== 0;
@@ -45,10 +54,22 @@ function normalizeSettings(raw){
   const out = { ...DEFAULT_SETTINGS };
   if(!raw || typeof raw !== 'object') return out;
 
-  if(raw.expiry_alert_days != null){
-    const d = Math.max(1, Math.min(365, parseInt(raw.expiry_alert_days, 10) || DEFAULT_SETTINGS.expiry_alert_days));
-    out.expiry_alert_days = d;
+  // Compat legacy (v0.1): expiry_alert_days -> general
+  if(raw.expiry_alert_general_days == null && raw.expiry_alert_days != null){
+    raw.expiry_alert_general_days = raw.expiry_alert_days;
   }
+
+  if(raw.expiry_alert_general_days != null){
+    const g = Math.max(1, Math.min(3650, parseInt(raw.expiry_alert_general_days, 10) || DEFAULT_SETTINGS.expiry_alert_general_days));
+    out.expiry_alert_general_days = g;
+  }
+  if(raw.expiry_alert_critical_days != null){
+    const c = Math.max(0, Math.min(365, parseInt(raw.expiry_alert_critical_days, 10) || DEFAULT_SETTINGS.expiry_alert_critical_days));
+    out.expiry_alert_critical_days = c;
+  }
+  // enforce critical <= general
+  if(out.expiry_alert_critical_days > out.expiry_alert_general_days) out.expiry_alert_critical_days = out.expiry_alert_general_days;
+
   if(raw.expiry_include_zero_stock != null) out.expiry_include_zero_stock = coerceBool(raw.expiry_include_zero_stock);
 
   if(raw.low_stock_alert_enabled != null) out.low_stock_alert_enabled = coerceBool(raw.low_stock_alert_enabled);
@@ -71,32 +92,60 @@ function normalizeSettings(raw){
 
 async function loadSettings(){
   try {
-    const res = await fetchJSON('api_settings_get.php');
-    const s = normalizeSettings(res?.settings);
+    // cache-bust lato client: alcune webview sono aggressive con la cache
+    const res = await fetchJSON(`api_settings_get.php?t=${Date.now()}`);
+    const un = unwrapApiResponse(res);
+    const s = normalizeSettings(un?.settings ?? un);
     SETTINGS = s;
   } catch (e) {
     // fallback: defaults
     SETTINGS = { ...DEFAULT_SETTINGS };
   }
 
+  // Espone una copia read-only per moduli esterni (es. analytics_tab.js)
+  try { window.WM_SETTINGS = { ...SETTINGS }; } catch (_) {}
+
   applySettingsToUI();
+  // Su refresh la tab Impostazioni mostrava i valori hardcoded (7/30)
+  // perché la form veniva popolata dall'HTML prima che arrivasse l'async load.
+  // Aggiorniamo sempre anche la form.
+  fillSettingsForm();
 }
 
 function applySettingsToUI(){
   // Home labels
   const lbl = document.getElementById('card_expiring_label');
-  if(lbl) lbl.innerHTML = `Lotti in scadenza &lt; ${SETTINGS.expiry_alert_days}gg`;
+  if(lbl) lbl.innerHTML = `Lotti in scadenza &lt; ${SETTINGS.expiry_alert_general_days}gg`;
+
+  const badgeCrit = document.getElementById('badge_expiry_critical');
+  if(badgeCrit){
+    badgeCrit.textContent = `0–${SETTINGS.expiry_alert_critical_days} giorni`;
+  }
 
   const badgeMid = document.getElementById('badge_expiry_mid');
   if(badgeMid){
-    const d = Math.max(7, SETTINGS.expiry_alert_days);
-    badgeMid.textContent = `8–${d} giorni`;
+    const c = Math.max(0, Number(SETTINGS.expiry_alert_critical_days || 0));
+    const g = Math.max(1, Number(SETTINGS.expiry_alert_general_days || 1));
+    const start = c + 1;
+    badgeMid.textContent = start <= g ? `${start}–${g} giorni` : `—`;
   }
 
   const sub = document.getElementById('expiry_subtitle');
   if(sub){
     sub.textContent = SETTINGS.expiry_include_zero_stock ? 'Include anche stock = 0' : 'Solo stock > 0';
   }
+
+  // Analytics labels (se presenti in index.html)
+  const aCrit = document.getElementById('analytics_exp_critical_days');
+  if(aCrit) aCrit.textContent = String(SETTINGS.expiry_alert_critical_days);
+  const aGen = document.getElementById('analytics_exp_alert_days');
+  if(aGen) aGen.textContent = String(SETTINGS.expiry_alert_general_days);
+
+  // Inventory KPI label (se presente)
+  const invCritLbl = document.getElementById('inv_kpi_exp_critical_label');
+  if(invCritLbl) invCritLbl.textContent = `Lotti in scadenza ≤ ${SETTINGS.expiry_alert_critical_days}gg`;
+  const invGenLbl = document.getElementById('inv_kpi_exp_general_label');
+  if(invGenLbl) invGenLbl.textContent = `Lotti in scadenza ≤ ${SETTINGS.expiry_alert_general_days}gg`;
 
   // Vendita default
   const manualToggle = document.getElementById('sale_manual_toggle');
@@ -116,7 +165,8 @@ function fillSettingsForm(){
   const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = String(val); };
   const setChk = (id, val) => { const el = document.getElementById(id); if(el) el.checked = !!val; };
 
-  setVal('set_expiry_alert_days', v.expiry_alert_days);
+  setVal('set_expiry_alert_critical_days', v.expiry_alert_critical_days);
+  setVal('set_expiry_alert_general_days', v.expiry_alert_general_days);
   setChk('set_expiry_include_zero_stock', v.expiry_include_zero_stock);
 
   setChk('set_low_stock_alert_enabled', v.low_stock_alert_enabled);
@@ -144,12 +194,15 @@ function collectSettingsFromForm(){
   const getVal = (id) => document.getElementById(id)?.value;
   const getChk = (id) => document.getElementById(id)?.checked === true;
 
-  const days = Math.max(1, Math.min(365, parseInt(getVal('set_expiry_alert_days'), 10) || DEFAULT_SETTINGS.expiry_alert_days));
+  const criticalDays = Math.max(0, Math.min(365, parseInt(getVal('set_expiry_alert_critical_days'), 10) || DEFAULT_SETTINGS.expiry_alert_critical_days));
+  const generalDays = Math.max(1, Math.min(3650, parseInt(getVal('set_expiry_alert_general_days'), 10) || DEFAULT_SETTINGS.expiry_alert_general_days));
+  const c = Math.min(criticalDays, generalDays);
   const threshold = Math.max(0, parseInt(getVal('set_low_stock_threshold_units'), 10) || 0);
   const mode = String(getVal('set_sale_default_mode') || 'FEFO').toUpperCase() === 'MANUAL' ? 'MANUAL' : 'FEFO';
 
   return {
-    expiry_alert_days: days,
+    expiry_alert_critical_days: c,
+    expiry_alert_general_days: generalDays,
     expiry_include_zero_stock: getChk('set_expiry_include_zero_stock'),
 
     low_stock_alert_enabled: getChk('set_low_stock_alert_enabled'),
@@ -195,15 +248,21 @@ async function saveSettingsFromForm(){
     }
 
     SETTINGS = normalizeSettings(res?.settings || payload);
+    try { window.WM_SETTINGS = { ...SETTINGS }; } catch (_) {}
     applySettingsToUI();
     fillSettingsForm();
 
     // Ricarica Home per rifare i filtri scadenze
     await loadHomeDashboard();
-    if(Cache.inventoryData && Cache.inventoryInsights){
+    // Invalida insights: dipendono dalle soglie utente
+    Cache.inventoryInsights = null;
+    if(Cache.inventoryData){
+      try{
+        Cache.inventoryInsights = await fetchJSON('api_inventory_insights.php?t=' + Date.now());
+      }catch(_){ /* ignore */ }
       initInventoryFilterBar();
-    refreshInventoryFilterOptions();
-    renderInventoryFromCache(getInventoryTokens());
+      refreshInventoryFilterOptions();
+      renderInventoryFromCache(getInventoryTokens());
     }
     applyGlobalSearch();
 
@@ -437,7 +496,8 @@ async function loadHomeDashboard(){
 
   document.getElementById('card_today_production').innerText = totalTodayProduction;
 
-  const expiryDays = Math.max(1, Number(SETTINGS?.expiry_alert_days ?? 30));
+  const generalDays = Math.max(1, Number(SETTINGS?.expiry_alert_general_days ?? 30));
+  const criticalDays = Math.max(0, Math.min(generalDays, Number(SETTINGS?.expiry_alert_critical_days ?? 7)));
   const includeZero = !!SETTINGS?.expiry_include_zero_stock;
 
   const expiringLots = lotsWithStock.filter(l=>{
@@ -445,7 +505,7 @@ async function loadHomeDashboard(){
     const diffDays = Math.ceil((new Date(l.expiration_date) - today)/(1000*60*60*24));
     const st = Number(l.stock)||0;
     if(!includeZero && st <= 0) return false;
-    return diffDays <= expiryDays && diffDays >= 0;
+    return diffDays <= generalDays && diffDays >= 0;
   });
 
   document.getElementById('card_expiring').innerText = expiringLots.length;
@@ -459,7 +519,7 @@ async function loadHomeDashboard(){
 
     const inDays = (d) => Math.ceil((new Date(d) - today) / (1000*60*60*24));
 
-    const exp7 = [];
+    const expCritical = [];
     const expMid = [];
 
     expiringLots
@@ -467,12 +527,12 @@ async function loadHomeDashboard(){
       .forEach(l=>{
         const days = inDays(l.expiration_date);
 
-        if(days >= 0 && days <= 7) exp7.push(l);
-        else if(days >= 8 && days <= expiryDays) expMid.push(l);
+        if(days >= 0 && days <= criticalDays) expCritical.push(l);
+        else if(days >= (criticalDays + 1) && days <= generalDays) expMid.push(l);
       });
 
     if(isMobile()){
-      renderMobileRows(tb7, exp7.slice(0,8).map(l => ({
+      renderMobileRows(tb7, expCritical.slice(0,8).map(l => ({
         title: l.product_name,
         lines: [
           `Lotto: <strong>${l.lot_number}</strong>`,
@@ -490,7 +550,7 @@ async function loadHomeDashboard(){
         right: `${l.stock}`
       })));
     } else {
-      tb7.innerHTML = exp7.slice(0,8).map(l => `
+      tb7.innerHTML = expCritical.slice(0,8).map(l => `
         <tr>
           <td>${l.product_name}</td>
           <td>${l.lot_number}</td>
@@ -763,6 +823,16 @@ function isSameLocalDay(mysqlDateTime, today = new Date()){
   return d.getFullYear() === today.getFullYear()
     && d.getMonth() === today.getMonth()
     && d.getDate() === today.getDate();
+}
+
+
+function unwrapApiResponse(res){
+  // Supporta sia {success:true,data:{...}} che risposta piatta legacy.
+  if(res && typeof res === 'object'){
+    if((res.success === true || res.ok === true) && res.data != null) return res.data;
+    if(res.settings != null && res.success !== false) return res; // settings flat
+  }
+  return res;
 }
 
 async function fetchJSON(url, options){
@@ -2189,9 +2259,10 @@ function renderLotsTableFromCache(tokens){
   rows.forEach(l=>{
     const diffDays = Math.ceil((new Date(l.expiration_date) - today)/(1000*60*60*24));
 
+    const { critical, general } = getExpiryThresholds();
     let bg = '';
-    if(diffDays<=30) bg='#e84118';
-    else if(diffDays<=90) bg='#fbc531';
+    if(diffDays<=critical) bg='#e84118';
+    else if(diffDays<=general) bg='#fbc531';
     else bg='#44bd32';
 
     const tr = document.createElement('tr');
@@ -2576,7 +2647,7 @@ function invDaysUntil(iso){
 function invIsExpiring(iso){
   const days = invDaysUntil(iso);
   if(days === null) return false;
-  const limit = Number(SETTINGS.expiry_alert_days || 0);
+  const limit = Number(SETTINGS.expiry_alert_general_days || 0);
   return days >= 0 && days <= limit;
 }
 
@@ -2805,8 +2876,8 @@ async function loadInventoryTab(){
         fetchJSON('api_inventory.php'),
         fetchJSON('api_inventory_insights.php')
       ]);
-      inv = res[0];
-      ins = res[1];
+      inv = unwrapApiResponse(res[0]);
+      ins = unwrapApiResponse(res[1]);
       Cache.inventoryData = inv;
       Cache.inventoryInsights = ins;
             // --- FEFO map (per evidenziare il lotto FEFO nella vista "per lotto") ---
@@ -2934,10 +3005,10 @@ function renderInventoryFromCache(tokens){
   const kTotal = document.getElementById('inv_kpi_total_stock');
   if(kTotal) kTotal.innerText = totalStock;
 
-  const exp7All = (ins.expiring_7d || []);
-  const exp30All = (ins.expiring_30d || []);
+  const expCritAll = (ins.expiring_critical || []);
+  const expGenAll = (ins.expiring_general || []);
 
-  const exp7 = exp7All.filter(x => {
+  const expCrit = expCritAll.filter(x => {
     if(fishFilter && String(x.fish_type||'').trim() !== fishFilter) return false;
     if(onlyFefoForKpi){
       const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(x.product_id)) || "";
@@ -2947,7 +3018,7 @@ function renderInventoryFromCache(tokens){
     if(!tokens.length) return true;
     return matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean} ${x.lot_number}`, tokens);
   });
-  const exp30 = exp30All.filter(x => {
+  const expGen = expGenAll.filter(x => {
     if(fishFilter && String(x.fish_type||'').trim() !== fishFilter) return false;
     if(onlyFefoForKpi){
       const fefoLotId = WM_FEFO_BY_PRODUCT.get(String(x.product_id)) || "";
@@ -2958,18 +3029,28 @@ function renderInventoryFromCache(tokens){
     return matchesTokens(`${x.product_name} ${x.format} ${x.fish_type} ${x.ean} ${x.lot_number}`, tokens);
   });
 
-  const k7 = document.getElementById('inv_kpi_exp7');
-  const k30 = document.getElementById('inv_kpi_exp30');
-  if(k7) k7.innerText = exp7.length;
-  if(k30) k30.innerText = exp30.length;
+  const kCrit = document.getElementById('inv_kpi_exp_critical');
+  const kGen = document.getElementById('inv_kpi_exp_general');
+  if(kCrit) kCrit.innerText = expCrit.length;
+  if(kGen) kGen.innerText = expGen.length;
+  // Aggiorna anche le label KPI dalle meta (così niente 7/30 fissi se SETTINGS non è pronto)
+  const meta = ins.meta || ins.settings || {};
+  const cDays = Number(meta.critical_days ?? meta.expiry_alert_critical_days);
+  const gDays = Number(meta.general_days ?? meta.expiry_alert_general_days);
+  const invCritLbl = document.getElementById('inv_kpi_exp_critical_label');
+  const invGenLbl = document.getElementById('inv_kpi_exp_general_label');
+  if(invCritLbl && isFinite(cDays)) invCritLbl.textContent = `Lotti in scadenza ≤ ${cDays}gg`;
+  if(invGenLbl && isFinite(gDays)) invGenLbl.textContent = `Lotti in scadenza ≤ ${gDays}gg`;
 
-  // TODO “cose da fare” = top 6 scadenze 7gg (filtrate)
+
+  // TODO “cose da fare” = top 6 scadenze critiche (filtrate)
   const todoEl = document.getElementById('inv_todo');
   if(todoEl){
-    const exp7Top = exp7.slice(0,6);
-    todoEl.innerHTML = exp7Top.length
-      ? exp7Top.map(x => `⚠️ <b>${highlightTextRaw(x.product_name, tokens)}</b> • Lotto <b>${highlightTextRaw(x.lot_number, tokens)}</b> • Stock <b>${x.stock}</b> • Scade <b>${highlightTextRaw(formatDateIT(x.expiration_date), tokens)}</b>`).join('<br>')
-      : `<span class="muted">Niente di urgente (≤7gg) 🎉</span>`;
+    const expTop = expCrit.slice(0,6);
+    const { critical } = getExpiryThresholds();
+    todoEl.innerHTML = expTop.length
+      ? expTop.map(x => `⚠️ <b>${highlightTextRaw(x.product_name, tokens)}</b> • Lotto <b>${highlightTextRaw(x.lot_number, tokens)}</b> • Stock <b>${x.stock}</b> • Scade <b>${highlightTextRaw(formatDateIT(x.expiration_date), tokens)}</b>`).join('<br>')
+      : `<span class="muted">Niente di urgente (≤${critical}gg) 🎉</span>`;
   }
 
   // Runout forecast (filtrato)
@@ -3225,13 +3306,15 @@ function renderInventoryProducts(rows, tokens){
       const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
 
       const today = new Date();
+      const { critical, general } = getExpiryThresholds();
       const expClass = (iso) => {
         if(!iso) return 'pill-exp';
         const d = new Date(iso);
         if(isNaN(d)) return 'pill-exp';
         const diff = Math.ceil((d - today) / (1000*60*60*24));
         if(diff < 0) return 'pill-exp expired';
-        if(diff <= 30) return 'pill-exp danger';
+        if(diff <= critical) return 'pill-exp danger';
+        if(diff <= general) return 'pill-exp';
         return 'pill-exp ok';
       };
 
@@ -3279,13 +3362,15 @@ function renderInventoryProducts(rows, tokens){
   const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
 
   const today = new Date();
+  const { critical, general } = getExpiryThresholds();
   const expClass = (iso) => {
     if(!iso) return 'pill-exp';
     const d = new Date(iso);
     if(isNaN(d)) return 'pill-exp';
     const diff = Math.ceil((d - today) / (1000*60*60*24));
     if(diff < 0) return 'pill-exp expired';
-    if(diff <= 30) return 'pill-exp danger';
+    if(diff <= critical) return 'pill-exp danger';
+    if(diff <= general) return 'pill-exp';
     return 'pill-exp ok';
   };
 
@@ -3373,12 +3458,15 @@ function renderInventoryLots(rows, tokens){
       const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
 
       const today = new Date();
+      const { critical, general } = getExpiryThresholds();
       const expClass = (iso) => {
         if(!iso) return 'pill-exp';
         const d = new Date(iso);
         if(isNaN(d)) return 'pill-exp';
         const diff = Math.ceil((d - today) / (1000*60*60*24));
-        if(diff <= 30) return 'pill-exp danger';
+        if(diff < 0) return 'pill-exp expired';
+        if(diff <= critical) return 'pill-exp danger';
+        if(diff <= general) return 'pill-exp';
         return 'pill-exp ok';
       };
 
@@ -3436,13 +3524,15 @@ function renderInventoryLots(rows, tokens){
   const pageRows = filtered.slice(startIdx, startIdx + INVENTORY_TABLE_PER_PAGE);
 
   const today = new Date();
+  const { critical, general } = getExpiryThresholds();
   const expClass = (iso) => {
     if(!iso) return 'pill-exp';
     const d = new Date(iso);
     if(isNaN(d)) return 'pill-exp';
     const diff = Math.ceil((d - today) / (1000*60*60*24));
     if(diff < 0) return 'pill-exp expired';
-    if(diff <= 30) return 'pill-exp danger';
+    if(diff <= critical) return 'pill-exp danger';
+    if(diff <= general) return 'pill-exp';
     return 'pill-exp ok';
   };
 

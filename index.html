@@ -73,7 +73,7 @@
 <p id="card_total_stock">0</p>
 </div>
 <div class="card kpi">
-<h3 id="card_expiring_label">Lotti in scadenza &lt; 30gg</h3>
+<h3 id="card_expiring_label">Lotti in scadenza &lt; —gg</h3>
 <p id="card_expiring">0</p>
 </div>
 <div class="card kpi">
@@ -92,7 +92,7 @@
 <div class="home-split">
 <div class="mini-block">
 <div class="mini-title">
-<span class="badge danger">0–7 giorni</span>
+<span class="badge danger" id="badge_expiry_critical">—</span>
 </div>
 <div class="table-wrap">
 <table>
@@ -110,7 +110,7 @@
 </div>
 <div class="mini-block">
 <div class="mini-title">
-<span class="badge warn" id="badge_expiry_mid">8–30 giorni</span>
+<span class="badge warn" id="badge_expiry_mid">—</span>
 </div>
 <div class="table-wrap">
 <table>
@@ -261,7 +261,7 @@
 <div class="section-head" style="margin-bottom: 8px;">
 <h3 class="h3">Rischio scadenze (stock attuale)</h3>
 <div class="muted">
-                    Entro 7gg: <b id="analytics_exp_3">0</b> · Entro <span id="analytics_exp_alert_days">7</span>gg: <b id="analytics_exp_7">0</b> · Scaduti: <b id="analytics_exp_expired">0</b>
+                    Entro <span id="analytics_exp_critical_days">—</span>gg: <b id="analytics_exp_3">0</b> · Entro <span id="analytics_exp_alert_days">—</span>gg: <b id="analytics_exp_7">0</b> · Scaduti: <b id="analytics_exp_expired">0</b>
 </div>
 </div>
 <div class="table-wrap">
@@ -295,9 +295,14 @@
 </div>
 <div class="form-grid">
 <div class="field">
-<label class="label">Giorni alert</label>
-<input class="input" id="set_expiry_alert_days" max="365" min="1" step="1" type="number"/>
-<div class="hint muted">Esempio: 30 → mostra lotti che scadono entro 30 giorni</div>
+<label class="label">Alert critico scadenza (giorni)</label>
+<input class="input" id="set_expiry_alert_critical_days" max="365" min="0" step="1" type="number"/>
+<div class="hint muted">Sotto o uguale a questa soglia: evidenzia in rosso</div>
+</div>
+<div class="field">
+<label class="label">Alert generale scadenza (giorni)</label>
+<input class="input" id="set_expiry_alert_general_days" max="3650" min="1" step="1" type="number"/>
+<div class="hint muted">Entro questa soglia: mostra negli alert scadenze</div>
 </div>
 <div class="field">
 <label class="label">Includi stock zero</label>
@@ -771,8 +776,8 @@
 <p class="muted">Vista operativa: stock, lotti, scadenze e “cose da fare”.</p>
 <div class="inv-kpis">
 <div class="card"><div class="label">Stock totale</div><div class="value" id="inv_kpi_total_stock">—</div></div>
-<div class="card"><div class="label">Lotti in scadenza ≤ 7gg</div><div class="value" id="inv_kpi_exp7">—</div></div>
-<div class="card"><div class="label">Lotti in scadenza ≤ 30gg</div><div class="value" id="inv_kpi_exp30">—</div></div>
+            <div class="card"><div class="label" id="inv_kpi_exp_critical_label">Lotti in scadenza ≤ —gg</div><div class="value" id="inv_kpi_exp_critical">—</div></div>
+<div class="card"><div class="label" id="inv_kpi_exp_general_label">Lotti in scadenza ≤ —gg</div><div class="value" id="inv_kpi_exp_general">—</div></div>
 </div>
 <div class="inv-grid">
 <div class="card">

@@ -17,17 +17,22 @@ try {
   // ===== Settings (DB) =====
   // Usa gli stessi default di api_settings_get.php (solo ciò che serve qui).
   $defaults = [
-    'expiry_alert_days' => 30,
+    'expiry_alert_critical_days' => 7,
+    'expiry_alert_general_days' => 30,
     'expiry_include_zero_stock' => false,
   ];
   $settings = $defaults;
 
   try {
-    $stmtS = $pdo->query("SELECT settings_json FROM settings ORDER BY id ASC LIMIT 1");
+    $stmtS = $pdo->query("SELECT settings_json FROM settings ORDER BY id DESC LIMIT 1");
     $rowS = $stmtS->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($rowS && !empty($rowS['settings_json'])) {
       $decoded = json_decode((string)$rowS['settings_json'], true);
       if (is_array($decoded)) {
+        // Compat legacy (v0.1): expiry_alert_days -> general
+        if (!array_key_exists('expiry_alert_general_days', $decoded) && array_key_exists('expiry_alert_days', $decoded)) {
+          $decoded['expiry_alert_general_days'] = (int)$decoded['expiry_alert_days'];
+        }
         foreach ($defaults as $k => $_) {
           if (array_key_exists($k, $decoded)) $settings[$k] = $decoded[$k];
         }
@@ -37,9 +42,14 @@ try {
     // tabella settings mancante o non leggibile: fallback ai default
   }
 
-  $alertDays = (int)$settings['expiry_alert_days'];
-  if ($alertDays < 1) $alertDays = 1;
-  if ($alertDays > 365) $alertDays = 365;
+  $generalDays = (int)$settings['expiry_alert_general_days'];
+  if ($generalDays < 1) $generalDays = 1;
+  if ($generalDays > 3650) $generalDays = 3650;
+
+  $criticalDays = (int)$settings['expiry_alert_critical_days'];
+  if ($criticalDays < 0) $criticalDays = 0;
+  if ($criticalDays > 365) $criticalDays = 365;
+  if ($criticalDays > $generalDays) $criticalDays = $generalDays;
 
   $includeZero = (bool)$settings['expiry_include_zero_stock'];
 
@@ -96,11 +106,12 @@ try {
   // counts: in base alla data di scadenza (stock attuale)
   $counts = [
     // chiavi nuove + alias per compatibilità
-    "within_3_days" => 0.0,
-    "within_alert_days" => 0.0,
+    "within_critical_days" => 0.0,
+    "within_general_days" => 0.0,
 
     // alias legacy (per non spaccare il frontend se si aspetta "within_7")
-    "within_3" => 0.0,
+    "within_critical" => 0.0,
+    "within_alert_days" => 0.0,
     "within_7_days" => 0.0,
     "within_7" => 0.0,
 
@@ -123,11 +134,14 @@ try {
       if ($diffDays < 0) {
         $counts["expired"] += $stock;
       } else {
-        if ($diffDays <= 7) {
-          $counts["within_3_days"] += $stock;
-          $counts["within_3"] += $stock;
+        if ($diffDays <= $criticalDays) {
+          $counts["within_critical_days"] += $stock;
+          $counts["within_critical"] += $stock;
         }
-        if ($diffDays <= $alertDays) {
+        if ($diffDays <= $generalDays) {
+          $counts["within_general_days"] += $stock;
+
+          // compat: mappo anche su within_alert_days / within_7*
           $counts["within_alert_days"] += $stock;
 
           // compat: mappo anche sui "within_7" così l'UI vecchia continua a funzionare
@@ -139,7 +153,7 @@ try {
 
     // Tabella: mostra solo scaduti o entro alertDays (settings).
     if ($diffDays === null) continue;
-    if (!($diffDays < 0 || $diffDays <= $alertDays)) continue;
+    if (!($diffDays < 0 || $diffDays <= $generalDays)) continue;
 
     $outRows[] = [
       "product" => trim((string)$r['name'] . ' ' . (string)$r['format']),
@@ -154,8 +168,8 @@ try {
     "success" => true,
     "data" => [
       "meta" => [
-        "alert_days" => $alertDays,
-        "critical_days" => 7,
+        "general_days" => $generalDays,
+        "critical_days" => $criticalDays,
         "include_zero_stock" => $includeZero
       ],
       "counts" => $counts,

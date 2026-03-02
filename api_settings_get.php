@@ -6,7 +6,11 @@ require_once __DIR__ . '/db.php';
 
 function default_settings(): array {
   return [
-    'expiry_alert_days' => 30,
+    // Scadenze
+    // - critical: soglia “rossa” (es. 7 giorni)
+    // - general: soglia “gialla” (es. 30 giorni)
+    'expiry_alert_critical_days' => 7,
+    'expiry_alert_general_days' => 30,
     'expiry_include_zero_stock' => false,
 
     'low_stock_alert_enabled' => true,
@@ -65,11 +69,34 @@ try {
   $decoded = json_decode($row['settings_json'] ?? '', true);
   if (!is_array($decoded)) $decoded = [];
 
+  // Compat legacy (v0.1): expiry_alert_days -> expiry_alert_general_days
+  if (!array_key_exists('expiry_alert_general_days', $decoded) && array_key_exists('expiry_alert_days', $decoded)) {
+    $decoded['expiry_alert_general_days'] = (int)$decoded['expiry_alert_days'];
+  }
+
+  // Compat legacy (v0.1): se non c'è critical, tieni 7 (ma non oltre general)
+  if (!array_key_exists('expiry_alert_critical_days', $decoded)) {
+    $decoded['expiry_alert_critical_days'] = 7;
+  }
+
   // merge: defaults + valori salvati
   $settings = $defaults;
   foreach ($defaults as $k => $_) {
     if (array_key_exists($k, $decoded)) $settings[$k] = $decoded[$k];
   }
+
+  // Normalizza scadenze (min/max + critical <= general)
+    $g = (int)($settings['expiry_alert_general_days'] ?? 30);
+    if ($g < 1) $g = 1;
+    if ($g > 3650) $g = 3650;
+
+  $c = (int)($settings['expiry_alert_critical_days'] ?? 7);
+  if ($c < 0) $c = 0;
+  if ($c > 365) $c = 365;
+  if ($c > $g) $c = $g;
+
+  $settings['expiry_alert_general_days'] = $g;
+  $settings['expiry_alert_critical_days'] = $c;
 
   json_out([
     'success' => true,

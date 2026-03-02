@@ -84,7 +84,15 @@
     return params;
   }
 
-  async function fetchJSON(url){
+  
+function unwrapApiResponse(res){
+  if(res && typeof res === 'object'){
+    if((res.success === true || res.ok === true) && res.data != null) return res.data;
+  }
+  return res;
+}
+
+async function fetchJSON(url){
     const res = await fetch(url, { credentials: 'same-origin' });
     const data = await res.json().catch(() => null);
     if(!res.ok || !data){
@@ -201,16 +209,24 @@
   function renderExpiries(data){
     const counts = data.counts || {};
     const meta = data.meta || {};
-    const alertDays = Number(meta.alert_days ?? meta.alertDays ?? 7);
+    const gFromGlobal = (typeof window !== 'undefined' && window.WM_SETTINGS) ? Number(window.WM_SETTINGS.expiry_alert_general_days) : NaN;
+    const cFromGlobal = (typeof window !== 'undefined' && window.WM_SETTINGS) ? Number(window.WM_SETTINGS.expiry_alert_critical_days) : NaN;
+    const criticalDays = Number(meta.critical_days ?? (isFinite(cFromGlobal) ? cFromGlobal : 7));
+    const generalDays = Number(meta.general_days ?? meta.alert_days ?? meta.alertDays ?? (isFinite(gFromGlobal) ? gFromGlobal : 30));
 
     // Compatibilità: l'API può esporre chiavi diverse
-    const within3 = (counts.within_3_days ?? counts.within_3 ?? 0);
-    const withinAlert = (counts.within_alert_days ?? counts.within_7_days ?? counts.within_7 ?? 0);
+    const within3 = (counts.within_critical_days ?? counts.within_critical ?? counts.within_3_days ?? counts.within_3 ?? 0);
+    const withinAlert = (counts.within_general_days ?? counts.within_alert_days ?? counts.within_7_days ?? counts.within_7 ?? 0);
     const expired = (counts.expired ?? 0);
 
     // aggiorna label "Entro Xgg"
     if(els.a_exp_alert_days){
-      els.a_exp_alert_days.textContent = String(isFinite(alertDays) ? alertDays : 7);
+      els.a_exp_alert_days.textContent = String(isFinite(generalDays) ? generalDays : 30);
+    }
+
+    const critSpan = document.getElementById('analytics_exp_critical_days');
+    if(critSpan){
+      critSpan.textContent = String(isFinite(criticalDays) ? criticalDays : 7);
     }
 
     els.a_exp_3.textContent = String(within3);
@@ -236,8 +252,9 @@
         : computeDaysToExpiry(expDateStr);
 
       const expClass = (daysToExpiry !== null && daysToExpiry < 0) ? 'badge danger'
-        : (daysToExpiry !== null && daysToExpiry <= 7) ? 'badge danger'
-        : 'badge warn';
+        : (daysToExpiry !== null && daysToExpiry <= criticalDays) ? 'badge danger'
+        : (daysToExpiry !== null && daysToExpiry <= generalDays) ? 'badge warn'
+        : 'badge';
       const expLabel = (daysToExpiry === null) ? '—' : (daysToExpiry < 0 ? 'SCADUTO' : `${daysToExpiry}g`);
 
       const productLabel = (r.product_label || r.product || '').trim();
@@ -334,10 +351,10 @@
         fetchJSON(`${API_BASE}/adjustments.php${qs}`),
       ]);
 
-      renderSummary(summary);
-      renderTrends(trends.rows || trends);
-      renderTopProducts(top.rows || top);
-      renderExpiries(expiries);
+      renderSummary(unwrapApiResponse(summary));
+      renderTrends((unwrapApiResponse(trends).rows) || unwrapApiResponse(trends));
+      renderTopProducts((unwrapApiResponse(top).rows) || unwrapApiResponse(top));
+      renderExpiries(unwrapApiResponse(expiries));
       renderAdjustments(adjustments);
 
     } catch(err){

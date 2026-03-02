@@ -6,7 +6,9 @@ require_method('POST');
 
 function default_settings(): array {
   return [
-    'expiry_alert_days' => 30,
+    // Scadenze
+    'expiry_alert_critical_days' => 7,
+    'expiry_alert_general_days' => 30,
     'expiry_include_zero_stock' => false,
 
     'low_stock_alert_enabled' => true,
@@ -47,12 +49,30 @@ try {
   $out = $defaults;
 
   // validate + normalize
-  if (array_key_exists('expiry_alert_days', $in)) {
-    $d = (int)$in['expiry_alert_days'];
-    if ($d < 1) $d = 1;
-    if ($d > 365) $d = 365;
-    $out['expiry_alert_days'] = $d;
+  // Compat legacy (v0.1): expiry_alert_days -> general
+  if (array_key_exists('expiry_alert_days', $in) && !array_key_exists('expiry_alert_general_days', $in)) {
+    $in['expiry_alert_general_days'] = $in['expiry_alert_days'];
   }
+
+  if (array_key_exists('expiry_alert_general_days', $in)) {
+    $g = (int)$in['expiry_alert_general_days'];
+    if ($g < 1) $g = 1;
+    if ($g > 3650) $g = 3650; // allow fino a 10 anni, per chi vuole disabilitare praticamente  
+    $out['expiry_alert_general_days'] = $g;
+  }
+
+  if (array_key_exists('expiry_alert_critical_days', $in)) {
+    $c = (int)$in['expiry_alert_critical_days'];
+    if ($c < 0) $c = 0;
+    if ($c > 365) $c = 365;
+    $out['expiry_alert_critical_days'] = $c;
+  }
+
+  // Enforce critical <= general
+  if ((int)$out['expiry_alert_critical_days'] > (int)$out['expiry_alert_general_days']) {
+    $out['expiry_alert_critical_days'] = (int)$out['expiry_alert_general_days'];
+  }
+
   if (array_key_exists('expiry_include_zero_stock', $in)) {
     $out['expiry_include_zero_stock'] = to_bool($in['expiry_include_zero_stock']);
   }
@@ -86,7 +106,7 @@ try {
   $pdo->beginTransaction();
 
   $row = null;
-  $stmt = $pdo->query("SELECT id FROM settings ORDER BY id ASC LIMIT 1 FOR UPDATE");
+  $stmt = $pdo->query("SELECT id FROM settings ORDER BY id DESC LIMIT 1 FOR UPDATE");
   $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
   $json = json_encode($out, JSON_UNESCAPED_UNICODE);
