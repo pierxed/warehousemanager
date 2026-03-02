@@ -55,19 +55,18 @@ try {
     $params[':pid'] = $product_id;
   }
 
-  $qtyExpr = ($unit === 'trays')
-    ? "(CASE
-        WHEN m.type='PRODUCTION' THEN (m.quantity / NULLIF(p.units_per_tray,0))
-        WHEN m.type='SALE' THEN -(m.quantity / NULLIF(p.units_per_tray,0))
-        WHEN m.type='ADJUSTMENT' THEN (m.quantity / NULLIF(p.units_per_tray,0))
-        ELSE 0
-      END)"
-    : "(CASE
+   // ===== Stock expression =====
+  // Sommo SEMPRE in unità, poi se unit=trays divido una sola volta e faccio FLOOR (arrotonda per difetto).
+  $qtyExprUnits = "(CASE
         WHEN m.type='PRODUCTION' THEN m.quantity
         WHEN m.type='SALE' THEN -m.quantity
         WHEN m.type='ADJUSTMENT' THEN m.quantity
         ELSE 0
       END)";
+
+  $stockSelect = ($unit === 'trays')
+    ? "FLOOR(COALESCE(SUM($qtyExprUnits), 0) / NULLIF(p.units_per_tray,0))"
+    : "COALESCE(SUM($qtyExprUnits), 0)";
 
   $having = $includeZero ? "stock >= 0" : "stock > 0";
 
@@ -78,7 +77,7 @@ try {
       b.expiration_date,
       p.name,
       p.format,
-      COALESCE(SUM($qtyExpr), 0) AS stock
+      $stockSelect AS stock
     FROM lots l
     JOIN products p ON p.id = l.product_id
     JOIN batches b ON b.id = l.batch_id
