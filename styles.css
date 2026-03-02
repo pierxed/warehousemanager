@@ -833,7 +833,7 @@ mark.hl{ background: #facc15 !important; color: #111827 !important; padding: 0 2
 .inv-kpis .label{ font-size:12px; opacity:.75; }
 .inv-kpis .value{ font-size:22px; font-weight:800; margin-top:6px; }
 
-.inv-controls{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0; }
+.inv-controls{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0;     justify-content: center;}
 .inv-toggle{ display:flex; gap:8px; }
 .chip{ padding:8px 12px; border-radius:999px; border:1px solid var(--border); background:#fff; cursor:pointer; }
 .chip.active{ font-weight:900; background: var(--accent-soft); border-color: rgba(37,99,235,.18); color: var(--accent); }

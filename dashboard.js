@@ -3403,6 +3403,17 @@ function renderInventoryLots(rows, tokens){
             `${isFefo ? '<span class="pill-mini-fefo-lot"><strong>FEFO</strong></span>' : ''} <span class="pill-mini pill-stock">Stock <strong>${stock}</strong></span> `,
             `<span class="pill-mini">Prod. <strong>${prodDate}</strong></span> <span class="pill-mini ${expClass(expIso)}">Scad. <strong>${expDate}</strong></span> ${isExpired ? '<span class="pill-mini pill-exp expired"><strong>SCADUTO</strong></span>' : ''}`,
             `<div class="mcard-actions">
+            <button
+  type="button"
+  class="qa-btn"
+  data-qa="prod_lot"
+  data-product="${Number(r.product_id||0)}"
+  data-lot="${Number(r.lot_id||0)}"
+  data-lot-number="${escapeHtml(String(r.lot_number||''))}"
+  data-exp="${escapeHtml(String((r.expiration_date||'')).slice(0,10))}"
+>
+  Produci lotto
+</button>
               <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
               <button type="button" class="qa-btn primary" data-qa="sale_lot" data-product="${Number(r.product_id||0)}" data-lot="${Number(r.lot_id||0)}">Vendi lotto</button>
             </div>`
@@ -3471,10 +3482,21 @@ function renderInventoryLots(rows, tokens){
           </div>
         </td>
 
-        <td class="inv-actions" style="text-align:right;">
-          <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
-          <button type="button" class="qa-btn primary" data-qa="sale_lot" data-product="${Number(r.product_id||0)}" data-lot="${Number(r.lot_id||0)}">Vendi lotto</button>
-        </td>
+       <td class="inv-actions" style="text-align:right;">
+  <button type="button" class="qa-btn" data-qa="adj" data-lot="${Number(r.lot_id||0)}">Rettifica</button>
+
+  <button
+    type="button"
+    class="qa-btn"
+    data-qa="prod_lot"
+    data-product="${Number(r.product_id||0)}"
+    data-lot="${Number(r.lot_id||0)}"
+    data-lot-number="${escapeHtml(String(r.lot_number||''))}"
+    data-exp="${escapeHtml(String((r.expiration_date||'')).slice(0,10))}"
+  >Produci lotto</button>
+
+  <button type="button" class="qa-btn primary" data-qa="sale_lot" data-product="${Number(r.product_id||0)}" data-lot="${Number(r.lot_id||0)}">Vendi lotto</button>
+</td>
       </tr>
     `;
   }).join('') || `<tr><td colspan="3">Nessun risultato</td></tr>`;
@@ -3789,6 +3811,125 @@ async function handleQuickAction(ds){
     });
     return;
   }
+  // ----- Produzione rapida su lotto (one-lot) -----
+if(qa === 'prod_lot'){
+  const productId = Number(ds.product || 0);
+  const lotId = Number(ds.lot || 0); // non serve davvero per l'API, ma utile come check
+  const lot_number = String(ds.lotNumber || ds.lot_number || ds['lot-number'] || ds.lotNumber || '').trim();
+  const expiration_date = String(ds.exp || '').trim(); // YYYY-MM-DD
+
+  // nel tuo dataset usi data-lot-number e data-exp, quindi ds.lotNumber e ds.exp
+  // (dataset converte data-lot-number -> lotNumber)
+
+  if(productId <= 0 || lotId <= 0) return;
+  if(!lot_number){
+    return qaMsg('error','Lotto mancante (dataset).');
+  }
+
+  const opened = qaOpen(`Produzione rapida (lotto ${lot_number})`, `
+    <div class="qa-row">
+      <div>
+        <div class="muted">Quantità</div>
+        <input id="qa_qty" class="qa-input" type="number" min="1" value="1">
+      </div>
+      <div>
+        <div class="muted">Tipo quantità</div>
+        <select id="qa_qtype" class="qa-input">
+          <option value="units">Barattoli</option>
+          <option value="trays">Vassoi</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="qa-row">
+      <div>
+        <div class="muted">Lotto</div>
+        <input id="qa_lot" class="qa-input" value="${escapeHtml(lot_number)}" readonly>
+      </div>
+      <div>
+        <div class="muted">Scadenza</div>
+        <input id="qa_exp" class="qa-input" type="date" value="${escapeHtml(expiration_date)}" readonly>
+      </div>
+    </div>
+
+    <div class="qa-actions">
+      <button class="qa-btn" id="qa_cancel" type="button">Annulla</button>
+      <button class="qa-btn primary" id="qa_go" type="button">Conferma</button>
+    </div>
+  `);
+
+  // fallback senza modal
+  if(!opened){
+    const qty = Number(prompt(`Quantità per lotto ${lot_number}:`, '1') || 0);
+    if(qty<=0) return;
+    if(!expiration_date){
+      alert('Questo lotto non ha scadenza valorizzata: non posso fare produzione rapida.');
+      return;
+    }
+    if(!confirm(`Confermi produzione su lotto ${lot_number} (+${qty})?`)) return;
+
+    try{
+      const res = await fetchJSON('api_production.php',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          product_id: productId,
+          quantity_input: qty,
+          quantity_type: 'units',
+          lot_number,
+          expiration_date
+        })
+      });
+      if(res?.success===false || res?.error) return alert(res.error || 'Errore produzione');
+      await refreshAllAfterAction();
+    }catch(e){
+      console.error(e);
+      alert('Errore produzione');
+    }
+    return;
+  }
+
+  qaEl('qa_cancel')?.addEventListener('click', qaClose);
+
+  qaEl('qa_go')?.addEventListener('click', async ()=>{
+    try{
+      const quantity_input = Number(qaEl('qa_qty')?.value || 0);
+      const quantity_type = qaEl('qa_qtype')?.value || 'units';
+
+      if(quantity_input<=0) return qaMsg('error','Quantità non valida');
+
+      // IMPORTANTISSIMO: nel tuo flusso produzione normale la scadenza è obbligatoria
+      // quindi se è vuota, blocchiamo (altrimenti 500 o errore API)
+      if(!expiration_date){
+        return qaMsg('error','Scadenza mancante su questo lotto: non posso fare produzione rapida.');
+      }
+
+      qaMsg('muted','Registrazione produzione...');
+      const res = await fetchJSON('api_production.php',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          product_id: productId,
+          quantity_input,
+          quantity_type,
+          lot_number,
+          expiration_date
+        })
+      });
+
+      if(res?.success===false || res?.error) return qaMsg('error', res.error || 'Errore produzione');
+
+      qaMsg('success', '✅ Produzione registrata');
+      await refreshAllAfterAction();
+      setTimeout(qaClose, 500);
+    }catch(e){
+      console.error(e);
+      qaMsg('error','Errore imprevisto');
+    }
+  });
+
+  return;
+}
 
   // ----- Vendita rapida su lotto (manual one-lot) -----
   if(qa === 'sale_lot'){
