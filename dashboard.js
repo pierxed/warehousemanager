@@ -2309,6 +2309,35 @@ function renderLotsTableFromCache(tokens){
   });
 }
 
+
+// ==========================
+// TAB NAVIGATION (programmatic)
+// ==========================
+function activateTab(tabId){
+
+  // disattiva tutti i bottoni
+  document.querySelectorAll('.tab-btn')
+    .forEach(b => b.classList.remove('active'));
+
+  // nasconde tutte le tab
+  document.querySelectorAll('.tab-pane')
+    .forEach(p => p.classList.remove('active'));
+
+  // trova bottone collegato
+  const btn = document.querySelector(`.tab-btn[data-target="${tabId}"]`);
+  const pane = document.getElementById(tabId);
+
+  if(!btn || !pane) return;
+
+  btn.classList.add('active');
+  pane.classList.add('active');
+
+  // se è la home aggiorna dashboard
+  if(tabId === 'tab_home' && typeof loadHomeDashboard === 'function'){
+    loadHomeDashboard();
+  }
+}
+
 // ---------- INIT ----------
 
 window.addEventListener('DOMContentLoaded', async ()=>{
@@ -2579,7 +2608,19 @@ if(lastTabId){
 
   // init quick-actions modal handlers (safe even if modal HTML not present)
   initQuickActionsModal();
+
+
 });
+
+// Click sul brand -> torna alla Home
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('#brand_home_link');
+  if (!link) return;
+
+  e.preventDefault();
+  activateTab('tab_home');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}, true); // capture=true = più robusto
 
 // ==========================
 // INVENTORY (MAGAZZINO)
